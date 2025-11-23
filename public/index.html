@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cricket Scoring App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body { font-family: Arial; padding: 18px; background: #f4f7fc; color:#122; }
+    .card { background: white; padding: 14px; border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.06); margin-bottom: 14px; }
+    h1 { text-align: center; margin: 6px 0 14px 0; }
+    textarea, select, input[type="text"] { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+    label { display: block; margin-top: 8px; font-weight: bold; font-size: 14px; }
+    button { padding: 8px 12px; margin: 4px; background: #0c7bdc; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button.secondary { background:#eee; color:#222 }
+    button.danger { background:#d9534f; }
+    .log { background: #fff; padding: 10px; border-radius: 8px; height: 180px; overflow-y: auto; border: 1px solid #ddd; font-family: monospace; }
+    .inline { display:flex; gap:8px; align-items:center; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { text-align:left; padding:6px; border-bottom:1px solid #f0f0f0; font-size:13px }
+    .small { font-size:12px; color:#666 }
+    .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .target-info { font-size: 14px; font-weight: bold; color: #0c7bdc; margin-top: 8px; }
+  </style>
+</head>
+
+<body>
+
+<h1>Cricket Scoring App — Two Innings</h1>
+
+<div class="card" id="matchSetupCard">
+  <h3>🏏 Match Setup</h3>
+  
+  <div id="teamCreationBlock">
+    <h4>1. Create Teams</h4>
+    <div class="setup-grid">
+      <div>
+        <label for="teamA_name">Team A Name:</label>
+        <input type="text" id="teamA_name" value="India">
+        <label for="teamA_players">Team A Players (one name per line):</label>
+        <textarea id="teamA_players" rows="5" placeholder="Player 1&#10;Player 2&#10;..."></textarea>
+      </div>
+      <div>
+        <label for="teamB_name">Team B Name:</label>
+        <input type="text" id="teamB_name" value="Australia">
+        <label for="teamB_players">Team B Players (one name per line):</label>
+        <textarea id="teamB_players" rows="5" placeholder="Player 1&#10;Player 2&#10;..."></textarea>
+      </div>
+    </div>
+    <button onclick="createTeams()" style="margin-top:10px; width: 100%">SAVE TEAMS & PLAYERS</button>
+  </div>
+  
+  <hr style="margin: 15px 0;" />
+
+  <div id="inningsStartBlock" style="display: none;">
+    <h4>2. Start Innings <span id="inningsStartHeader">1</span></h4>
+    
+    <div id="firstInningsSetup">
+      <label for="battingTeamSelect">Batting First:</label>
+      <select id="battingTeamSelect">
+        <option value="teamA">Team A</option>
+        <option value="teamB">Team B</option>
+      </select>
+    </div>
+    
+    <div class="setup-grid">
+      <div>
+          <label for="strikerSelect">Opening Striker:</label>
+          <select id="strikerSelect"></select>
+      </div>
+      <div>
+          <label for="nonStrikerSelect">Opening Non-Striker:</label>
+          <select id="nonStrikerSelect"></select>
+      </div>
+    </div>
+
+    <label for="startingBowlerSelect">Starting Bowler: <span class="small">(Opposition's players only)</span></label>
+    <select id="startingBowlerSelect"></select>
+    
+    <button onclick="setTeamsAndMatch()" id="startMatchButton" style="margin-top:10px; width: 100%">START INNINGS 1</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3>📊 Scoreboard</h3>
+  <div id="inningsInfo" style="font-size:16px; font-weight:700; color:#0c7bdc;">Innings 1</div>
+  <div id="innings1Summary" class="small" style="margin-bottom: 4px;"></div>
+  
+  <div id="teamNames" style="font-size:14px; font-weight:400; color:#444;"></div>
+  <div id="targetInfo" class="target-info"></div>
+  
+  <div id="score" style="font-size:36px; font-weight:700">0/0</div>
+  <div id="overs" class="small">Overs: 0.0</div>
+
+  <div style="margin-top:8px">
+    <div id="batsmenInfo"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>▶️ Scoring Controls</h3>
+  <div class="inline" style="margin-bottom: 8px;">
+    <button onclick="endInnings()" id="endInningsButton" class="danger" style="display: none;">END 1ST INNINGS</button>
+  </div>
+  <div class="inline">
+    <button onclick="run(0)">0</button>
+    <button onclick="run(1)">1</button>
+    <button onclick="run(2)">2</button>
+    <button onclick="run(3)">3</button>
+    <button onclick="run(4)">4</button>
+    <button onclick="run(6)">6</button>
+  </div>
+  <div class="inline" style="margin-top:8px;">
+    <button onclick="wicket()" class="danger">Wicket</button>
+    <button onclick="wide()" class="secondary">Wide (+1)</button>
+    <button onclick="noball()" class="secondary">No-ball (+1)</button>
+    <button onclick="resetMatch()" style="background:#444">Reset Entire Match</button>
+  </div>
+  <div style="margin-top:10px">
+    <label>Current Bowler: <span id="currentBowlerName">N/A</span></label>
+    <select id="currentBowlerSelect" onchange="changeBowler()"></select>
+  </div>
+</div>
+
+<div class="card grid">
+  <div>
+    <h4>Batsmen Scorecard</h4>
+    <table id="batsmenTable">
+      <thead><tr><th>Name</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div>
+    <h4>Bowlers Scorecard</h4>
+    <table id="bowlersTable">
+      <thead><tr><th>Name</th><th>O</th><th>R</th><th>W</th><th>Eco</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<h4>Match Log</h4>
+<div class="log" id="logBox"></div>
+
+<script>
+/* -----------------------
+   HELPERS
+------------------------*/
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const txt = await res.text().catch(()=>"");
+    console.error("API error", path, res.status, txt);
+    throw new Error(`API ${path} failed: ${res.status} ${txt}`);
+  }
+  return res.json();
+}
+
+function formatOversFromBalls(balls) {
+  return `${Math.floor(balls / 6)}.${balls % 6}`;
+}
+
+// Helper to populate select elements with player names
+function populateSelect(selectId, players, currentName) {
+    const select = document.getElementById(selectId);
+    select.innerHTML = '';
+    
+    if (players.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.text = "-- No Players Available --";
+        select.appendChild(opt);
+        return;
+    }
+    
+    const optDefault = document.createElement("option");
+    optDefault.value = "";
+    optDefault.text = "-- Select Player --";
+    select.appendChild(optDefault);
+
+    players.forEach((name, index) => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.text = name;
+        
+        // Explicitly select based on currentName
+        if (name === currentName) {
+            opt.selected = true;
+        }
+
+        select.appendChild(opt);
+    });
+}
+
+// Determines which team is batting/bowling and provides player rosters
+function getActiveRosters(data) {
+    let teamA_players = [];
+    let teamB_players = [];
+    let battingTeamKey, bowlingTeamKey;
+
+    const teamsCreated = data.teams && data.teams.teamA && data.teams.teamA.players.length > 0;
+    
+    if (teamsCreated) {
+        // 1. Get player names from the server state (which holds the saved players)
+        teamA_players = data.teams.teamA.players.map(p => p.name);
+        teamB_players = data.teams.teamB.players.map(p => p.name);
+
+        // 2. Determine which team is batting/bowling
+        if (data.battingTeam && data.bowlingTeam) {
+            // Match is started or between innings (server state dictates teams)
+            battingTeamKey = data.battingTeam;
+            bowlingTeamKey = data.bowlingTeam;
+        } else {
+            // Match is in setup phase (UI dropdown dictates teams)
+            battingTeamKey = document.getElementById("battingTeamSelect").value;
+            bowlingTeamKey = battingTeamKey === 'teamA' ? 'teamB' : 'teamA';
+        }
+    } else {
+        // Teams not created yet - read from UI for the createTeams action
+        teamA_players = document.getElementById("teamA_players").value.split("\n").map(p => p.trim()).filter(Boolean);
+        teamB_players = document.getElementById("teamB_players").value.split("\n").map(p => p.trim()).filter(Boolean);
+        
+        // Use UI to determine keys for selection preview
+        battingTeamKey = document.getElementById("battingTeamSelect").value;
+        bowlingTeamKey = battingTeamKey === 'teamA' ? 'teamB' : 'teamA';
+    }
+    
+    // 3. Assign the player lists based on team keys
+    const battingPlayers = battingTeamKey === 'teamA' ? teamA_players : teamB_players;
+    const bowlingPlayers = battingTeamKey === 'teamA' ? teamB_players : teamA_players;
+    
+    // The starting bowler dropdown must show the correct opposition players for server validation.
+    // The previous attempt to combine lists was incorrect for validation.
+
+    return { battingPlayers, bowlingPlayers, battingTeamKey, bowlingTeamKey };
+}
+
+// Updates the player select dropdowns in the setup card
+function updatePlayerSelects(data) {
+    const { battingPlayers, bowlingPlayers, battingTeamKey, bowlingTeamKey } = getActiveRosters(data || {});
+    
+    // Use server state for current players if match is active, otherwise use current UI selection
+    const currentStriker = data && data.striker ? data.striker : document.getElementById('strikerSelect').value;
+    const currentNonStriker = data && data.nonStriker ? data.nonStriker : document.getElementById('nonStrikerSelect').value;
+
+    // Striker/Non-Striker are filtered by battingPlayers
+    populateSelect('strikerSelect', battingPlayers, currentStriker);
+    populateSelect('nonStrikerSelect', battingPlayers, currentNonStriker);
+    
+    // Starting Bowler uses the opposition's bowlingPlayers list
+    populateSelect('startingBowlerSelect', bowlingPlayers);
+
+    // Ensure batting team select is correct for Innings 2 setup
+    if (data && data.innings === 2 && data.battingTeam) {
+        document.getElementById('battingTeamSelect').value = data.battingTeam;
+    }
+}
+
+// Updates the setup card's visibility and button text based on innings
+function updateSetupUI(data) {
+    const teamsCreated = data.teams.teamA.players.length > 0;
+    const isFirstInnings = data.innings === 1;
+    const isMatchActive = data.matchStarted;
+    const isSetupPhase = teamsCreated && !isMatchActive;
+
+    // --- Control Setup Visibility ---
+    document.getElementById('teamCreationBlock').style.display = teamsCreated ? 'none' : 'block';
+    document.getElementById('inningsStartBlock').style.display = isSetupPhase ? 'block' : 'none';
+    document.getElementById('matchSetupCard').style.display = (teamsCreated && isMatchActive) ? 'none' : 'block';
+
+
+    // --- Control Scoring Controls Visibility ---
+    const controls = document.querySelectorAll('.card:nth-of-type(4) button');
+    controls.forEach(btn => {
+        if (btn.id !== 'endInningsButton' && btn.getAttribute('onclick') !== 'resetMatch()') {
+            btn.disabled = !isMatchActive;
+        }
+    });
+    document.getElementById('currentBowlerSelect').disabled = !isMatchActive;
+
+
+    // --- Innings Start Block configuration ---
+    document.getElementById('inningsStartHeader').innerText = data.innings;
+    document.getElementById('firstInningsSetup').style.display = isFirstInnings ? 'block' : 'none';
+    
+    const button = document.getElementById('startMatchButton');
+    if (isSetupPhase) {
+        if (data.innings === 2) {
+            button.innerText = 'START INNINGS 2';
+        } else {
+            button.innerText = 'START INNINGS 1';
+        }
+    }
+    
+    // --- End Innings Button ---
+    const endBtn = document.getElementById('endInningsButton');
+    endBtn.style.display = (isFirstInnings && isMatchActive) ? 'block' : 'none';
+}
+
+
+// Attach listeners for dynamic updates
+document.getElementById('battingTeamSelect').addEventListener('change', refresh);
+
+
+/* -----------------------
+   ACTIONS
+------------------------*/
+async function createTeams() {
+  const teamA_name = document.getElementById("teamA_name").value.trim();
+  const teamB_name = document.getElementById("teamB_name").value.trim();
+  const teamA_players = document.getElementById("teamA_players").value.split("\n").map(p => p.trim()).filter(Boolean);
+  const teamB_players = document.getElementById("teamB_players").value.split("\n").map(p => p.trim()).filter(Boolean);
+
+  if (teamA_players.length < 2 || teamB_players.length < 2) return alert("Each team must have at least 2 players.");
+
+  try {
+    const result = await api("/api/createTeams", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ 
+        teamA: { name: teamA_name, players: teamA_players },
+        teamB: { name: teamB_name, players: teamB_players },
+      })
+    });
+    alert(result.message);
+    refresh();
+  } catch (err) {
+    console.error(err);
+    alert("Team creation failed: " + err.message);
+  }
+}
+
+async function setTeamsAndMatch() {
+  const battingTeam = document.getElementById("battingTeamSelect").value;
+  const openingStriker = document.getElementById("strikerSelect").value;
+  const openingNonStriker = document.getElementById("nonStrikerSelect").value;
+  const startingBowler = document.getElementById("startingBowlerSelect").value;
+
+  if (!openingStriker || !openingNonStriker || !startingBowler) {
+      return alert("Please select opening batsmen and a starting bowler.");
+  }
+  if (openingStriker === openingNonStriker) return alert("Striker and Non-Striker must be different players.");
+
+  try {
+    const result = await api("/api/setTeamsAndMatch", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ 
+        battingTeam: battingTeam,
+        openingStriker: openingStriker,
+        openingNonStriker: openingNonStriker,
+        startingBowler: startingBowler
+      })
+    });
+    alert(result.message);
+    refresh();
+  } catch (err) {
+    console.error(err);
+    alert("Innings start failed: " + err.message);
+  }
+}
+
+async function endInnings() {
+  if (!confirm("Are you sure you want to end the 1st innings?")) return;
+
+  try {
+    const result = await api("/api/endInnings", { method: "POST" });
+    alert(result.message);
+    refresh();
+  } catch (err) {
+    console.error(err);
+    alert("Failed to end innings: " + err.message);
+  }
+}
+
+async function changeBowler() {
+  const sel = document.getElementById("currentBowlerSelect");
+  const bowler = sel.value;
+  if (!bowler) return;
+  try {
+    await api("/api/selectBowler", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ bowler })
+    });
+    refresh();
+  } catch (err) { console.error(err); alert(err.message); }
+}
+
+async function run(v) {
+  try {
+    await api(`/api/run/${v}`, { method: "POST" });
+    refresh();
+  } catch (err) { console.error(err); alert(err.message); }
+}
+
+async function wicket() {
+  try {
+    await api("/api/wicket", { method: "POST" });
+    refresh();
+  } catch (err) { console.error(err); alert(err.message); }
+}
+
+async function wide() {
+  try {
+    await api("/api/wide", { method: "POST" });
+    refresh();
+  } catch (err) { console.error(err); alert(err.message); }
+}
+
+async function noball() {
+  try {
+    await api("/api/noball", { method: "POST" });
+    refresh();
+  } catch (err) { console.error(err); alert(err.message); }
+}
+
+async function resetMatch() {
+  if (confirm("Are you sure you want to reset the entire match state? This will clear all scores and players.")) {
+    await api("/api/reset", { method: "POST" });
+    alert("Match state reset. Please create teams again.");
+    // Clear the UI player lists for a clean start
+    document.getElementById("teamA_players").value = "";
+    document.getElementById("teamB_players").value = "";
+    refresh();
+  }
+}
+
+/* -----------------------
+   REFRESH UI
+------------------------*/
+async function refresh() {
+  try {
+    const data = await api("/api/score");
+    const battingTeamName = data.battingTeam ? data.teams[data.battingTeam].name : "N/A";
+    const bowlingTeamName = data.bowlingTeam ? data.teams[data.bowlingTeam].name : "N/A";
+    const overs = formatOversFromBalls(data.balls);
+
+    // --- Innings Info ---
+    document.getElementById("inningsInfo").innerText = `Innings ${data.innings}`;
+    
+    // Innings 1 Summary
+    const i1s = data.innings1Score;
+    if (i1s.battingTeam) {
+        const i1TeamName = data.teams[i1s.battingTeam].name;
+        document.getElementById("innings1Summary").innerText = 
+          `${i1TeamName} (Innings 1): ${i1s.score}/${i1s.wickets} in ${formatOversFromBalls(i1s.balls)} overs`;
+    } else {
+        document.getElementById("innings1Summary").innerText = "";
+    }
+    
+    // Target
+    const targetInfoElement = document.getElementById("targetInfo");
+    if (data.innings === 2) {
+      const runsToWin = data.target - data.score;
+      
+      let targetText = `Target: ${data.target}. ${battingTeamName} needs ${runsToWin} runs to win.`;
+      
+      // Simplify win/loss messages based on server's final state
+      if (!data.matchStarted) {
+         if (runsToWin <= 0) {
+            const wicketsLeft = data.teams[data.battingTeam].players.length - data.wickets;
+            targetText = `🎉 ${battingTeamName} WON by ${wicketsLeft} wickets!`;
+         } else if (data.wickets >= data.teams[data.battingTeam].players.length - 1 && runsToWin > 1) {
+            targetText = `🏆 ${bowlingTeamName} WON by ${data.target - 1 - data.score} runs!`;
+         } else if (runsToWin === 1) {
+            targetText = `🤝 MATCH TIED!`;
+         } else if (runsToWin > 1 && data.balls >= data.innings1Score.balls) {
+             targetText = `🏆 ${bowlingTeamName} WON by ${data.target - 1 - data.score} runs! (Overs Complete)`;
+         }
+      }
+      
+      targetInfoElement.innerHTML = targetText;
+    } else {
+      targetInfoElement.innerHTML = "";
+    }
+
+
+    // --- Scoreboard ---
+    document.getElementById("teamNames").innerText = `${battingTeamName} Batting against ${bowlingTeamName}`;
+    document.getElementById("score").innerText = `${data.score}/${data.wickets}`;
+    document.getElementById("overs").innerText = `Overs: ${overs}`;
+    document.getElementById("currentBowlerName").innerText = data.currentBowler || "N/A";
+    
+    // --- Scorecards ---
+    
+    // batsmen table
+    const tbodyB = document.querySelector("#batsmenTable tbody");
+    tbodyB.innerHTML = "";
+    data.players.forEach(p => {
+      const tr = document.createElement("tr");
+      const sr = p.ballsFaced > 0 ? ( (p.runs / p.ballsFaced) * 100 ).toFixed(2) : "0.00";
+      let status = "";
+      if (p.name === data.striker) status = " ⚡";
+      else if (p.name === data.nonStriker) status = " (ns)";
+      
+      tr.innerHTML = `<td>${p.name}${status}</td>
+                      <td>${p.runs}</td>
+                      <td>${p.ballsFaced}</td>
+                      <td>${p.fours}</td>
+                      <td>${p.sixes}</td>
+                      <td>${sr}</td>`;
+      tbodyB.appendChild(tr);
+    });
+
+    // bowlers table
+    const tbodyBo = document.querySelector("#bowlersTable tbody");
+    tbodyBo.innerHTML = "";
+    data.bowlers.forEach(b => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${b.name}${b.name===data.currentBowler? " 🎯": ""}</td>
+                      <td>${b.overs}</td>
+                      <td>${b.runsConceded}</td>
+                      <td>${b.wickets}</td>
+                      <td>${b.economy}</td>`;
+      tbodyBo.appendChild(tr);
+    });
+
+    // current bowler select (for changing bowler after an over)
+    const sel = document.getElementById("currentBowlerSelect");
+    sel.innerHTML = "";
+    data.bowlers.forEach(b => {
+      const opt = document.createElement("option");
+      opt.value = b.name;
+      opt.text = `${b.name} (${b.overs}, R:${b.runsConceded}, W:${b.wickets})`;
+      if (b.name === data.currentBowler) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.disabled = !data.matchStarted;
+
+
+    // --- Setup UI Logic ---
+    updatePlayerSelects(data);
+    updateSetupUI(data);
+
+    // --- Log ---
+    const logBox = document.getElementById("logBox");
+    logBox.innerHTML = data.log.join("<br>");
+    logBox.scrollTop = logBox.scrollHeight;
+  } catch (err) {
+    console.error("Refresh failed", err);
+  }
+}
+
+/* auto refresh every 1.5s */
+refresh();
+setInterval(refresh, 1500);
+</script>
+
+</body>
+</html>
