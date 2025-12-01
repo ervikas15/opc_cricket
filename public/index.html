@@ -7,13 +7,15 @@
     body { font-family: Arial; padding: 18px; background: #f4f7fc; color:#122; }
     .card { background: white; padding: 14px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); margin-bottom: 14px; }
     h1 { text-align: center; margin: 6px 0 14px 0; }
-    select, input[type="text"], textarea { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+    select, input[type="text"], input[type="number"], textarea {
+      width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box;
+    }
     label { display: block; margin-top: 8px; font-weight: bold; font-size: 14px; }
     button { padding: 8px 12px; margin: 4px; background: #0c7bdc; color: white; border: none; border-radius: 6px; cursor: pointer; }
     button.secondary { background:#eee; color:#222 }
     button.danger { background:#d9534f; }
-    .inline { display:flex; gap:8px; align-items:center; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; flex-wrap:wrap; }
     table { width:100%; border-collapse: collapse; }
     th, td { text-align:left; padding:6px; border-bottom:1px solid #f0f0f0; font-size:13px }
     .small { font-size:12px; color:#666 }
@@ -21,8 +23,16 @@
     .target-info { font-size: 14px; font-weight: bold; color: #0c7bdc; margin-top: 8px; }
 
     /* Popups */
-    .overlay { display:none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.45); justify-content:center; align-items:center; z-index:999; }
-    .popup { background:white; padding:16px; border-radius:10px; width:360px; box-shadow:0 8px 30px rgba(0,0,0,0.25); }
+    .overlay {
+      display:none; position: fixed;
+      top:0; left:0; right:0; bottom:0;
+      background: rgba(0,0,0,0.45);
+      justify-content:center; align-items:center; z-index:999;
+    }
+    .popup {
+      background:white; padding:16px; border-radius:10px;
+      width:360px; box-shadow:0 8px 30px rgba(0,0,0,0.25);
+    }
     .popup .row { display:flex; gap:8px; margin-top:8px; }
     .popup .row button { flex:1; }
     .warning { color: #a66; font-weight:700; margin-top:8px; }
@@ -31,7 +41,7 @@
 <body>
 <h1>Orchid Park Cricket Scoring</h1>
 
-<!-- POPUPS -->
+<!-- NEXT BOWLER POPUP -->
 <div id="bowlerPopup" class="overlay">
   <div class="popup">
     <h3>Select next bowler</h3>
@@ -39,12 +49,26 @@
     <select id="nextBowlerSelect"></select>
     <div id="bowlerWarning" class="warning" style="display:none;"></div>
     <div class="row" style="margin-top:10px;">
-      <button onclick="confirmNextBowler()">Set Bowler & Resume</button>
-      <button onclick="closeBowlerPopup()" style="background:#ddd;color:#222">Cancel</button>
+      <button id="confirmNextBowlerBtn">Set Bowler & Resume</button>
+      <button id="cancelBowlerBtn" style="background:#ddd;color:#222">Cancel</button>
     </div>
   </div>
 </div>
 
+<!-- EXTRAS POPUP -->
+<div id="extraPopup" class="overlay">
+  <div class="popup">
+    <h3>Extras</h3>
+    <label id="extraLabel">Extra runs (besides +1):</label>
+    <input id="extraRunsInput" type="number" min="0" value="0" />
+    <div class="row" style="margin-top:10px;">
+      <button id="submitExtraBtn">Submit</button>
+      <button id="cancelExtraBtn" style="background:#ddd;color:#222">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- WICKET TYPE POPUP -->
 <div id="wicketTypePopup" class="overlay">
   <div class="popup">
     <h3>Wicket — Choose type</h3>
@@ -57,40 +81,62 @@
       <option value="Stumped">Stumped</option>
       <option value="Hit Wicket">Hit Wicket</option>
       <option value="Retired Hurt">Retired Hurt</option>
+      <option value="Out of the Court">Out of the Court</option>
       <option value="Other">Other</option>
     </select>
     <div class="row" style="margin-top:10px;">
-      <button onclick="submitWicketType()">Confirm Wicket</button>
-      <button onclick="closeWicketTypePopup()" style="background:#ddd;color:#222">Cancel</button>
+      <button id="confirmWicketTypeBtn">Confirm Wicket</button>
+      <button id="cancelWicketTypeBtn" style="background:#ddd;color:#222">Cancel</button>
     </div>
   </div>
 </div>
 
+<!-- WICKET ACTION POPUP -->
 <div id="wicketPopup" class="overlay">
   <div class="popup">
     <h3>Wicket! Choose action</h3>
     <div class="row">
-      <button onclick="openNewBatsmanPopup()">Select New Batsman</button>
-      <button onclick="activateLastMan()">Last Man Standing</button>
+      <button id="openNewBatsmanBtn">Select New Batsman</button>
+      <button id="activateLastManBtn">Last Man Standing</button>
     </div>
     <div class="row">
-      <button onclick="closeWicketPopup()" style="background:#ddd;color:#222">Cancel</button>
+      <button id="closeWicketPopupBtn" style="background:#ddd;color:#222">Cancel</button>
     </div>
   </div>
 </div>
 
+<!-- NEW BATSMAN POPUP -->
 <div id="newBatsmanPopup" class="overlay">
   <div class="popup">
     <h3>Select New Batsman</h3>
     <select id="newBatsmanSelect"></select>
     <div class="row" style="margin-top:10px;">
-      <button onclick="submitNewBatsman()">Add</button>
-      <button onclick="closeNewBatsmanPopup()" style="background:#ddd;color:#222">Cancel</button>
+      <button id="submitNewBatsmanBtn">Add</button>
+      <button id="closeNewBatsmanBtn" style="background:#ddd;color:#222">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- MAIN UI -->
+<!-- CHANGE STRIKER POPUP -->
+<div class="overlay" id="changeStrikerPopup">
+  <div class="popup">
+    <h3>Change Striker</h3>
+
+    <div class="row">
+      <button id="swapStrikeBtn">Swap Striker & Non-Striker</button>
+    </div>
+
+    <label style="margin-top:8px;">Or set a specific player as striker:</label>
+    <select id="setStrikerSelect"></select>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="setStrikerBtn">Set Striker</button>
+      <button id="cancelSetStrikerBtn" style="background:#ddd;color:#222">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- MATCH SETUP -->
 <div class="card" id="matchSetupCard">
   <h3>🏏 Match Setup</h3>
   <h4>1. Create Teams</h4>
@@ -98,7 +144,7 @@
     <div><label>Team A Name:</label><input id="teamA_name" value="Mandai Monks"></div>
     <div><label>Team B Name:</label><input id="teamB_name" value="Seletar Sharks"></div>
   </div>
-  <button onclick="createTeams()" style="margin-top:10px;width:100%;">SAVE TEAMS</button>
+  <button id="createTeamsBtn" style="margin-top:10px;width:100%;">SAVE TEAMS</button>
   <hr style="margin:15px 0;" />
   <div id="inningsStartBlock" style="display:none;">
     <h4>2. Start Innings <span id="inningsStartHeader">1</span></h4>
@@ -113,10 +159,11 @@
     <label style="margin-top:10px;">Opening Bowler:</label>
     <select id="startingBowlerSelect"></select>
 
-    <div style="margin-top:10px;"><button onclick="setTeamsAndMatch()" id="startMatchButton" style="width:100%;">START INNINGS</button></div>
+    <div style="margin-top:10px;"><button id="startInningsBtn" style="width:100%;">START INNINGS</button></div>
   </div>
 </div>
 
+<!-- SCOREBOARD -->
 <div class="card">
   <h3>📊 Scoreboard</h3>
   <div id="inningsInfo" style="font-size:16px;font-weight:700;color:#0c7bdc;">Innings 1</div>
@@ -126,390 +173,527 @@
   <div id="score" style="font-size:36px;font-weight:700">0/0</div>
   <div id="overs" class="small">Overs: 0.0</div>
   <div style="margin-top:10px;">
-    <button id="endInningsBtn" onclick="endInnings()" class="danger" style="display:none;">END 1ST INNINGS</button>
+    <button id="endInningsBtn" class="danger" style="display:none;">END 1ST INNINGS</button>
   </div>
 </div>
 
+<!-- SCORING CONTROLS -->
 <div class="card">
   <h3>▶️ Scoring Controls</h3>
 
   <div class="inline">
-    <button onclick="run(0)">0</button>
-    <button onclick="run(1)">1</button>
-    <button onclick="run(2)">2</button>
-    <button onclick="run(3)">3</button>
-    <button onclick="run(4)">4</button>
-    <button onclick="run(5)">5</button>
-    <button onclick="run(6)">6</button>
+    <button class="runBtn" data-runs="0">0</button>
+    <button class="runBtn" data-runs="1">1</button>
+    <button class="runBtn" data-runs="2">2</button>
+    <button class="runBtn" data-runs="3">3</button>
+    <button class="runBtn" data-runs="4">4</button>
+    <button class="runBtn" data-runs="5">5</button>
+    <button class="runBtn" data-runs="6">6</button>
   </div>
 
   <div class="inline" style="margin-top:8px;">
-    <button onclick="openWicketTypePopup()" class="danger">Wicket</button>
-    <button onclick="wideSelected()" class="secondary">Wide</button>
-    <button onclick="noballSelected()" class="secondary">No-ball</button>
-    <button onclick="resetMatch()" style="background:#444;">Reset</button>
+    <button id="wicketBtn" class="danger">Wicket</button>
+    <button id="wideBtn" class="secondary">Wide</button>
+    <button id="noballBtn" class="secondary">No-ball</button>
+    <button id="changeStrikerBtn" class="secondary">Change Striker</button>
+    <button id="resetBtn" style="background:#444;">Reset</button>
   </div>
 
   <div style="margin-top:10px;">
-    <label>Extras (choose extra runs for wide/no-ball):</label>
-    <select id="extraRunsSelect">
-      <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option>
+    <label>Extras quick-select:</label>
+    <select id="extraQuickSelect">
+      <option value="0">0</option><option value="1">1</option>
+      <option value="2">2</option><option value="3">3</option>
+      <option value="4">4</option><option value="6">6</option>
     </select>
   </div>
 
   <div style="margin-top:10px;">
     <label>Current Bowler: <span id="currentBowlerName">N/A</span></label>
-    <select id="currentBowlerSelect" onchange="changeBowler()"></select>
+    <select id="currentBowlerSelect"></select>
   </div>
 </div>
 
+<!-- TABLES -->
 <div class="card grid">
   <div>
     <h4>Batsmen</h4>
-    <table id="batsmenTable"><thead><tr><th>Name</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead><tbody></tbody></table>
+    <table id="batsmenTable">
+      <thead><tr><th>Name</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
   <div>
     <h4>Bowlers</h4>
-    <table id="bowlersTable"><thead><tr><th>Name</th><th>O</th><th>R</th><th>W</th></tr></thead><tbody></tbody></table>
+    <table id="bowlersTable">
+      <thead><tr><th>Name</th><th>O</th><th>R</th><th>W</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
 </div>
 
 <h4>Match Log</h4>
 <div class="log" id="logBox"></div>
 
+<!-- SCRIPT -->
 <script>
-/* ---------------------------
-   FIXED PLAYER LIST (sorted + defaults)
---------------------------- */
+/* --------------------------------------------------
+   FIXED PLAYER LIST
+-------------------------------------------------- */
 const FIXED_PLAYERS = [
   "Rohit Sharma","Virat Kohli","KL Rahul","Hardik Pandya","Ravindra Jadeja",
   "Jasprit Bumrah","Shubman Gill","Suryakumar Yadav","Ishan Kishan",
   "Mohammed Shami","Washington Sundar","Shardul Thakur"
 ];
-const SORTED_PLAYERS = [...FIXED_PLAYERS].sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
 
+const SORTED_PLAYERS = [...FIXED_PLAYERS].sort((a,b)=>
+  a.localeCompare(b,undefined,{sensitivity:"base"})
+);
+
+/* --------------------------------------------------
+   SELECT POPULATION HELPERS
+-------------------------------------------------- */
 function populateSelectWithDefault(id, players, defaultIndex=null) {
-  const sel = document.getElementById(id); sel.innerHTML = "";
-  players.forEach((name, idx)=> {
-    const opt = document.createElement("option"); opt.value = name; opt.text = name;
-    if (defaultIndex !== null && idx === defaultIndex) opt.selected = true;
+  const sel = document.getElementById(id); sel.innerHTML="";
+  players.forEach((name,idx)=>{
+    const opt=document.createElement("option");
+    opt.value=name; opt.text=name;
+    if (defaultIndex!==null && idx===defaultIndex) opt.selected=true;
     sel.appendChild(opt);
   });
 }
+
 function populateSelectNoDefault(id, players) {
-  const sel = document.getElementById(id); sel.innerHTML = "";
-  const ph = document.createElement("option"); ph.value = ""; ph.text = "-- Select player --"; sel.appendChild(ph);
-  players.forEach(name => { const opt = document.createElement("option"); opt.value = name; opt.text = name; sel.appendChild(opt); });
+  const sel = document.getElementById(id); sel.innerHTML="";
+  const ph=document.createElement("option"); ph.value=""; ph.text="-- Select player --";
+  sel.appendChild(ph);
+  players.forEach(name=>{
+    const opt=document.createElement("option");
+    opt.value=name; opt.text=name;
+    sel.appendChild(opt);
+  });
 }
+
+function repopulateAndKeep(id, players, currentValue) {
+  const sel=document.getElementById(id); sel.innerHTML="";
+  players.forEach(name=>{
+    const opt=document.createElement("option");
+    opt.value=name; opt.text=name;
+    if (currentValue && name===currentValue) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+/* INITIAL POPULATE */
 function populateInitialDropdowns() {
   populateSelectWithDefault("strikerSelect", SORTED_PLAYERS, 0);
   populateSelectWithDefault("nonStrikerSelect", SORTED_PLAYERS, 1);
   populateSelectWithDefault("startingBowlerSelect", SORTED_PLAYERS, 2);
+
   populateSelectNoDefault("newBatsmanSelect", SORTED_PLAYERS);
   populateSelectNoDefault("nextBowlerSelect", SORTED_PLAYERS);
-  populateSelectNoDefault("wicketTypeSelect", ["Bowled","Caught","LBW","Run Out","Stumped","Hit Wicket","Retired Hurt","Other"]);
-  // currentBowlerSelect filled dynamically in refresh using bowlers + sorted players
+  populateSelectNoDefault("setStrikerSelect", SORTED_PLAYERS);
 }
 populateInitialDropdowns();
 
-/* ---------------------------
+/* OTHER STATE */
+let bowlerPopupAlreadyShown = false;
+let currentExtraType = null;
+
+/* --------------------------------------------------
    API helper
---------------------------- */
+-------------------------------------------------- */
 async function api(path, opts={}) {
   const res = await fetch(path, opts);
   const text = await res.text().catch(()=>null);
-  if (!res.ok) throw new Error(text || `API ${path} failed: ${res.status}`);
-  try { return JSON.parse(text); } catch(e) { return text; }
+  let parsed = null;
+  try { parsed = text ? JSON.parse(text) : null; }
+  catch(e) { parsed = text; }
+
+  if (!res.ok) {
+    const msg = parsed?.message || parsed || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return parsed;
 }
 
-/* ---------------------------
-   Create teams & start
---------------------------- */
-async function createTeams(){
+/* --------------------------------------------------
+   CREATE TEAMS
+-------------------------------------------------- */
+document.getElementById("createTeamsBtn").addEventListener("click", async ()=>{
   await api("/api/createTeams", {
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ teamA:{name:document.getElementById("teamA_name").value}, teamB:{name:document.getElementById("teamB_name").value} })
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      teamA:{name:document.getElementById("teamA_name").value},
+      teamB:{name:document.getElementById("teamB_name").value}
+    })
   });
-  document.getElementById("inningsStartBlock").style.display = "block";
-  alert("Teams saved. Choose openers to start innings.");
-}
+  document.getElementById("inningsStartBlock").style.display="block";
+  alert("Teams saved. Ready to start innings.");
+});
 
-async function setTeamsAndMatch(){
+/* --------------------------------------------------
+   START INNINGS
+-------------------------------------------------- */
+document.getElementById("startInningsBtn").addEventListener("click", async ()=>{
   const battingTeam=document.getElementById("battingTeamSelect").value;
   const openingStriker=document.getElementById("strikerSelect").value;
   const openingNonStriker=document.getElementById("nonStrikerSelect").value;
   const startingBowler=document.getElementById("startingBowlerSelect").value;
-  if (!openingStriker || !openingNonStriker || !startingBowler) return alert("Choose openers and bowler.");
-  if (openingStriker === openingNonStriker) return alert("Striker and non-striker must differ.");
-  await api("/api/setTeamsAndMatch", { method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ battingTeam, openingStriker, openingNonStriker, startingBowler }) });
-  refresh();
-}
 
-/* ---------------------------
+  if (!openingStriker || !openingNonStriker || !startingBowler)
+    return alert("Choose openers and bowler");
+  if (openingStriker===openingNonStriker)
+    return alert("Striker & non-striker must be different");
+
+  await api("/api/setTeamsAndMatch", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ battingTeam, openingStriker, openingNonStriker, startingBowler })
+  });
+
+  refresh();
+});
+
+/* --------------------------------------------------
    END INNINGS
---------------------------- */
-async function endInnings(){
-  if (!confirm("End 1st innings and set target?")) return;
+-------------------------------------------------- */
+document.getElementById("endInningsBtn").addEventListener("click", async ()=>{
+  if (!confirm("End 1st innings?")) return;
   await api("/api/endInnings", { method:"POST" });
   refresh();
-}
+});
 
-/* ---------------------------
-   RUNS (legal)
---------------------------- */
-async function run(v){
+/* --------------------------------------------------
+   RUN BUTTONS
+-------------------------------------------------- */
+document.querySelectorAll(".runBtn").forEach(btn=>{
+  btn.addEventListener("click", async ()=>{
+    try {
+      await api(`/api/run/${btn.dataset.runs}`, { method:"POST" });
+      refresh();
+    } catch(err){ alert(err.message); }
+  });
+});
+
+/* --------------------------------------------------
+   WICKET FLOW
+-------------------------------------------------- */
+document.getElementById("wicketBtn").addEventListener("click", ()=>{
+  document.getElementById("wicketTypePopup").style.display="flex";
+});
+
+document.getElementById("cancelWicketTypeBtn").addEventListener("click", ()=>{
+  document.getElementById("wicketTypePopup").style.display="none";
+});
+
+document.getElementById("confirmWicketTypeBtn").addEventListener("click", async ()=>{
+  const type=document.getElementById("wicketTypeSelect").value;
+  document.getElementById("wicketTypePopup").style.display="none";
+
   try {
-    await api(`/api/run/${v}`, { method:"POST" });
+    const data=await api("/api/wicket", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ wicketType:type })
+    });
+    if (data.awaitingNewBatsman)
+      document.getElementById("wicketPopup").style.display="flex";
     refresh();
-  } catch (err) { alert(err.message); }
-}
+  } catch(err){ alert(err.message); }
+});
 
-/* ---------------------------
-   WICKET: open wicket type popup first
---------------------------- */
-function openWicketTypePopup(){
-  document.getElementById("wicketTypePopup").style.display = "flex";
-}
-function closeWicketTypePopup(){ document.getElementById("wicketTypePopup").style.display = "none"; }
+/* POPUP after wicket */
+document.getElementById("openNewBatsmanBtn").addEventListener("click", async ()=>{
+  document.getElementById("wicketPopup").style.display="none";
+  await populateNewBatsmanOptions();
+  document.getElementById("newBatsmanPopup").style.display="flex";
+});
 
-async function submitWicketType(){
-  const type = document.getElementById("wicketTypeSelect").value;
-  if (!type) return alert("Choose a wicket type");
-  document.getElementById("wicketTypePopup").style.display = "none";
-  try {
-    const data = await api("/api/wicket", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ wicketType: type }) });
-    // server will indicate awaitingNewBatsman if needed
-    if (data.awaitingNewBatsman) {
-      // show wicket-popup (choose new batsman or last man)
-      document.getElementById("wicketPopup").style.display = "flex";
-    }
-    refresh();
-  } catch (err) { alert(err.message); }
-}
+document.getElementById("activateLastManBtn").addEventListener("click", async ()=>{
+  await api("/api/lastManStanding", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ useLastMan:true })
+  });
+  document.getElementById("wicketPopup").style.display="none";
+  refresh();
+});
 
-/* ---------------------------
-   New batsman flow
---------------------------- */
-function openNewBatsmanPopup(){
-  document.getElementById("wicketPopup").style.display = "none";
-  populateNewBatsmanOptions();
-  document.getElementById("newBatsmanPopup").style.display = "flex";
-}
-function closeWicketPopup(){ document.getElementById("wicketPopup").style.display = "none"; }
-function closeNewBatsmanPopup(){ document.getElementById("newBatsmanPopup").style.display = "none"; }
+document.getElementById("closeWicketPopupBtn").addEventListener("click", ()=>{
+  document.getElementById("wicketPopup").style.display="none";
+});
 
+/* New batsman */
+document.getElementById("closeNewBatsmanBtn").addEventListener("click", ()=>{
+  document.getElementById("newBatsmanPopup").style.display="none";
+});
+
+document.getElementById("submitNewBatsmanBtn").addEventListener("click", async ()=>{
+  const name=document.getElementById("newBatsmanSelect").value;
+  if (!name) return alert("Select batsman");
+  await api("/api/newBatsman", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ name })
+  });
+  document.getElementById("newBatsmanPopup").style.display="none";
+  refresh();
+});
+
+/* AVAILABLE BATSMEN */
 async function populateNewBatsmanOptions(){
   try {
-    const data = await api("/api/score");
-    const outNames = data.players.filter(p=>p.out).map(p=>p.name);
-    const available = SORTED_PLAYERS.filter(n => !outNames.includes(n) && n !== data.nonStriker && n !== data.striker);
-    if (available.length === 0) {
-      // if none left, still show all as fallback
-      populateSelectNoDefault("newBatsmanSelect", SORTED_PLAYERS);
-    } else {
-      populateSelectNoDefault("newBatsmanSelect", available);
-    }
-  } catch (err) {
+    const data=await api("/api/score");
+    const outNames=data.players.filter(p=>p.out).map(p=>p.name);
+    const available=SORTED_PLAYERS.filter(n =>
+      !outNames.includes(n) && n!==data.nonStriker && n!==data.striker
+    );
+    populateSelectNoDefault("newBatsmanSelect", available.length ? available : SORTED_PLAYERS);
+  } catch(err) {
     populateSelectNoDefault("newBatsmanSelect", SORTED_PLAYERS);
   }
 }
 
-async function submitNewBatsman(){
-  const name = document.getElementById("newBatsmanSelect").value;
-  if (!name) return alert("Choose a batsman");
-  await api("/api/newBatsman", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ name }) });
-  document.getElementById("newBatsmanPopup").style.display = "none";
-  refresh();
+/* --------------------------------------------------
+   EXTRAS POPUP
+-------------------------------------------------- */
+document.getElementById("wideBtn").addEventListener("click", ()=> openExtraPopup("wide"));
+document.getElementById("noballBtn").addEventListener("click", ()=> openExtraPopup("noball"));
+
+function openExtraPopup(type){
+  currentExtraType=type;
+  document.getElementById("extraRunsInput").value=document.getElementById("extraQuickSelect").value || "0";
+  document.getElementById("extraPopup").style.display="flex";
 }
 
-async function activateLastMan(){
-  await api("/api/lastManStanding", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ useLastMan:true }) });
-  document.getElementById("wicketPopup").style.display = "none";
-  refresh();
-}
+document.getElementById("cancelExtraBtn").addEventListener("click", ()=>{
+  document.getElementById("extraPopup").style.display="none";
+  currentExtraType=null;
+});
 
-/* ---------------------------
-   EXTRAS (Option A)
---------------------------- */
-async function wideSelected(){
-  const runs = parseInt(document.getElementById("extraRunsSelect").value);
-  await api("/api/extras", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type:"wide", runs }) });
-  refresh();
-}
-async function noballSelected(){
-  const runs = parseInt(document.getElementById("extraRunsSelect").value);
-  await api("/api/extras", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type:"noball", runs }) });
-  refresh();
-}
-
-/* ---------------------------
-   Bowler selection after over
---------------------------- */
-function openBowlerPopup(){
-  // populate nextBowlerSelect with sorted players (exclude none)
-  populateSelectNoDefault("nextBowlerSelect", SORTED_PLAYERS);
-  document.getElementById("bowlerWarning").style.display = "none";
-  document.getElementById("bowlerPopup").style.display = "flex";
-}
-function closeBowlerPopup(){ document.getElementById("bowlerPopup").style.display = "none"; }
-
-async function confirmNextBowler(){
-  const chosen = document.getElementById("nextBowlerSelect").value;
-  if (!chosen) return alert("Choose a bowler");
-  // call selectBowler API - server will indicate if same as last over via warningSame flag
+document.getElementById("submitExtraBtn").addEventListener("click", async ()=>{
+  const extra=parseInt(document.getElementById("extraRunsInput").value)||0;
   try {
-    const res = await api("/api/selectBowler", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ bowler: chosen }) });
-    if (res.warningSame) {
-      // show warning but accept
-      document.getElementById("bowlerWarning").innerText = "Warning: same bowler as previous over selected (allowed).";
-      document.getElementById("bowlerWarning").style.display = "block";
-      // still close after short pause
-      setTimeout(()=>{ closeBowlerPopup(); refresh(); }, 900);
-    } else {
-      closeBowlerPopup();
-      refresh();
-    }
-  } catch (err) { alert(err.message); }
-}
+    await api("/api/extras",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ type:currentExtraType, extraRuns:extra })
+    });
+    document.getElementById("extraPopup").style.display="none";
+    currentExtraType=null;
+    refresh();
+  } catch(err){ alert(err.message); }
+});
 
-/* ---------------------------
-   Change bowler manually (currentBowlerSelect)
---------------------------- */
-async function changeBowler(){
-  const bowler = document.getElementById("currentBowlerSelect").value;
+/* --------------------------------------------------
+   CHANGE BOWLER
+-------------------------------------------------- */
+document.getElementById("currentBowlerSelect").addEventListener("change", async ()=>{
+  const bowler=document.getElementById("currentBowlerSelect").value;
   if (!bowler) return;
-  await api("/api/selectBowler", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ bowler }) });
+  await api("/api/selectBowler",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ bowler })
+  });
   refresh();
-}
+});
 
-/* ---------------------------
-   Reset
---------------------------- */
-async function resetMatch(){
+/* Next bowler popup */
+document.getElementById("confirmNextBowlerBtn").addEventListener("click", async ()=>{
+  const bowler=document.getElementById("nextBowlerSelect").value;
+  if (!bowler) return alert("Choose bowler");
+  try {
+    const res=await api("/api/selectBowler",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ bowler })
+    });
+
+    if (res.warningSame) {
+      const warn=document.getElementById("bowlerWarning");
+      warn.innerText="Warning: same bowler as last over";
+      warn.style.display="block";
+      setTimeout(()=>warn.style.display="none", 1200);
+    }
+    document.getElementById("bowlerPopup").style.display="none";
+    bowlerPopupAlreadyShown=false;
+    refresh();
+  } catch(err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById("cancelBowlerBtn").addEventListener("click", ()=>{
+  document.getElementById("bowlerPopup").style.display="none";
+  bowlerPopupAlreadyShown=false;
+});
+
+/* --------------------------------------------------
+   CHANGE STRIKER POPUP
+-------------------------------------------------- */
+document.getElementById("changeStrikerBtn").addEventListener("click", ()=>{
+  document.getElementById("changeStrikerPopup").style.display="flex";
+});
+
+document.getElementById("swapStrikeBtn").addEventListener("click", async ()=>{
+  try {
+    await api("/api/changeStrike",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ action:"swap" })
+    });
+    document.getElementById("changeStrikerPopup").style.display="none";
+    refresh();
+  } catch(err){ alert(err.message); }
+});
+
+document.getElementById("setStrikerBtn").addEventListener("click", async ()=>{
+  const name=document.getElementById("setStrikerSelect").value;
+  if (!name) return alert("Choose player");
+  try {
+    await api("/api/changeStrike",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ action:"set", name })
+    });
+    document.getElementById("changeStrikerPopup").style.display="none";
+    refresh();
+  } catch(err){ alert(err.message); }
+});
+
+document.getElementById("cancelSetStrikerBtn").addEventListener("click", ()=>{
+  document.getElementById("changeStrikerPopup").style.display="none";
+});
+
+/* --------------------------------------------------
+   RESET
+-------------------------------------------------- */
+document.getElementById("resetBtn").addEventListener("click", async ()=>{
   if (!confirm("Reset entire match?")) return;
-  await api("/api/reset", { method:"POST" });
+  await api("/api/reset",{ method:"POST" });
   populateInitialDropdowns();
-  document.getElementById("inningsStartBlock").style.display = "block";
+  document.getElementById("inningsStartBlock").style.display="block";
   refresh();
-}
+});
 
-/* ---------------------------
-   UI utilities
---------------------------- */
-function populateSelectNoDefault(id, players) {
-  const sel = document.getElementById(id); sel.innerHTML = "";
-  const ph = document.createElement("option"); ph.value=""; ph.text="-- Select player --"; sel.appendChild(ph);
-  players.forEach(name => { const opt = document.createElement("option"); opt.value = name; opt.text = name; sel.appendChild(opt); });
-}
-function populateSelectWithDefault(id, players, defaultIndex=null) {
-  const sel = document.getElementById(id); sel.innerHTML = "";
-  players.forEach((name, idx)=> { const opt = document.createElement("option"); opt.value = name; opt.text = name; if (defaultIndex !== null && idx===defaultIndex) opt.selected=true; sel.appendChild(opt); });
-}
-
-/* ---------------------------
-   REFRESH UI
---------------------------- */
+/* --------------------------------------------------
+   REFRESH FUNCTION
+-------------------------------------------------- */
 async function refresh(){
   try {
-    const data = await api("/api/score");
-    document.getElementById("inningsInfo").innerText = `Innings ${data.innings}`;
-    document.getElementById("innings1Summary").innerText = data.innings1Score.battingTeam ? `${data.innings1Score.score}/${data.innings1Score.wickets} in ${Math.floor(data.innings1Score.balls/6)}.${data.innings1Score.balls%6}` : "";
-    const battingTeamName = data.battingTeam ? data.teams[data.battingTeam].name : "N/A";
-    const bowlingTeamName = data.bowlingTeam ? data.teams[data.bowlingTeam].name : "N/A";
-    document.getElementById("teamNames").innerText = `${battingTeamName} batting vs ${bowlingTeamName}`;
+    const data=await api("/api/score");
 
-    if (data.innings === 2) {
-      if (data.matchStarted) {
-        document.getElementById("targetInfo").innerText = `Target: ${data.target} | Need ${Math.max(0, data.target - data.score)} runs`;
-      } else {
-        document.getElementById("targetInfo").innerText = `Target: ${data.target} (awaiting innings 2 openers)`;
-      }
-    } else {
-      document.getElementById("targetInfo").innerText = "";
-    }
+    document.getElementById("inningsInfo").innerText=
+      `Innings ${data.innings}`;
 
-    document.getElementById("score").innerText = `${data.score}/${data.wickets}`;
-    document.getElementById("overs").innerText = `Overs: ${Math.floor(data.balls/6)}.${data.balls%6}`;
-    document.getElementById("endInningsBtn").style.display = (data.innings===1 && data.matchStarted) ? "inline-block" : "none";
+    document.getElementById("innings1Summary").innerText=
+      data.innings1Score.battingTeam
+        ? `${data.innings1Score.score}/${data.innings1Score.wickets} in `
+          + `${Math.floor(data.innings1Score.balls/6)}.${data.innings1Score.balls%6}`
+        : "";
 
-    // batsmen table
-    const batsT = document.querySelector("#batsmenTable tbody"); batsT.innerHTML = "";
-    data.players.forEach(p => {
-      const tr = document.createElement("tr");
-      const status = p.out ? ` ✖ (${p.outReason||"out"})` : (p.name === data.striker ? " ⚡" : (p.name === data.nonStriker ? " (ns)" : ""));
-      tr.innerHTML = `<td>${p.name}${status}</td><td>${p.runs}</td><td>${p.ballsFaced}</td><td>${p.fours}</td><td>${p.sixes}</td>`;
+    document.getElementById("teamNames").innerText=
+      `${data.battingTeam?data.teams[data.battingTeam].name:""} batting vs ` +
+      `${data.bowlingTeam?data.teams[data.bowlingTeam].name:""}`;
+
+    document.getElementById("targetInfo").innerText=
+      data.innings===2
+        ? `Target: ${data.target} | Need ${Math.max(0,data.target-data.score)}`
+        : "";
+
+    document.getElementById("score").innerText=
+      `${data.score}/${data.wickets}`;
+
+    document.getElementById("overs").innerText=
+      `Overs: ${Math.floor(data.balls/6)}.${data.balls%6}`;
+
+    document.getElementById("endInningsBtn").style.display=
+      (data.innings===1 && data.matchStarted) ? "inline-block" : "none";
+
+    /* Batsmen table */
+    const batsT=document.querySelector("#batsmenTable tbody"); batsT.innerHTML="";
+    data.players.forEach(p=>{
+      const tr=document.createElement("tr");
+      let mark="";
+      if (!p.out && p.name===data.striker) mark=" ⚡";
+      else if (!p.out && p.name===data.nonStriker) mark=" (ns)";
+      else if (p.out) mark=` ✖ (${p.outReason||"out"})`;
+
+      tr.innerHTML=`<td>${p.name}${mark}</td>
+                    <td>${p.runs}</td><td>${p.ballsFaced}</td>
+                    <td>${p.fours}</td><td>${p.sixes}</td>`;
       batsT.appendChild(tr);
     });
 
-    // bowlers table
-    const bowlT = document.querySelector("#bowlersTable tbody"); bowlT.innerHTML = "";
-    data.bowlers.forEach(b => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${b.name}${b.name===data.currentBowler ? " 🎯":""}</td><td>${Math.floor(b.totalBalls/6)}.${b.totalBalls%6}</td><td>${b.runsConceded}</td><td>${b.wickets}</td>`;
+    /* Bowlers table */
+    const bowlT=document.querySelector("#bowlersTable tbody"); bowlT.innerHTML="";
+    data.bowlers.forEach(b=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td>${b.name}${b.name===data.currentBowler?" 🎯":""}</td>
+                    <td>${Math.floor(b.totalBalls/6)}.${b.totalBalls%6}</td>
+                    <td>${b.runsConceded}</td>
+                    <td>${b.wickets}</td>`;
       bowlT.appendChild(tr);
     });
 
-    // current bowler select: prefer sorted players but include dynamic bowlers
-    const allBowlerNames = SORTED_PLAYERS.slice();
-    data.bowlers.forEach(b => { if (!allBowlerNames.includes(b.name)) allBowlerNames.push(b.name); });
-    // keep current selected value if present
-    const cur = data.currentBowler || "";
-    populateSelectWithDefault("currentBowlerSelect", allBowlerNames, allBowlerNames.indexOf(cur) >= 0 ? allBowlerNames.indexOf(cur) : null);
+    /* CURRENT BOWLER SELECT (Option B: full fixed list) */
+    const allBowlerNames=[...SORTED_PLAYERS];
+    const cur=data.currentBowler || "";
+    populateSelectWithDefault(
+      "currentBowlerSelect",
+      allBowlerNames,
+      allBowlerNames.indexOf(cur)>=0 ? allBowlerNames.indexOf(cur) : null
+    );
+    document.getElementById("currentBowlerName").innerText = cur || "N/A";
 
-    document.getElementById("currentBowlerName").innerText = data.currentBowler || "N/A";
-
-    // show awaitingNewBowler popup when server requires
-    if (data.awaitingNewBowler) {
-      // prefill nextBowlerSelect and show popup
-      populateSelectNoDefault("nextBowlerSelect", SORTED_PLAYERS);
-      // show a warning if lastOverBowler exists to hint
-      if (data.lastOverBowler) {
-        document.getElementById("bowlerWarning").innerText = `Last over bowled by: ${data.lastOverBowler}. You may select same bowler (warning will appear).`;
-        document.getElementById("bowlerWarning").style.display = "block";
-      } else {
-        document.getElementById("bowlerWarning").style.display = "none";
-      }
-      document.getElementById("bowlerPopup").style.display = "flex";
-    } else {
-      document.getElementById("bowlerPopup").style.display = "none";
+    /* Show next-bowler popup only once per over */
+    if (data.awaitingNewBowler && !bowlerPopupAlreadyShown) {
+      const list=[...SORTED_PLAYERS];
+      populateSelectNoDefault("nextBowlerSelect", list);
+      document.getElementById("bowlerWarning").style.display="none";
+      document.getElementById("bowlerPopup").style.display="flex";
+      bowlerPopupAlreadyShown=true;
+    }
+    if (!data.awaitingNewBowler) {
+      bowlerPopupAlreadyShown=false;
+      document.getElementById("bowlerPopup").style.display="none";
     }
 
-    // show wicket popup/new batsman popup as appropriate
+    /* Wicket popup if needed */
     if (data.awaitingNewBatsman) {
-      document.getElementById("wicketPopup").style.display = "flex";
+      document.getElementById("wicketPopup").style.display="flex";
     } else {
-      document.getElementById("wicketPopup").style.display = "none";
-      document.getElementById("newBatsmanPopup").style.display = "none";
+      document.getElementById("wicketPopup").style.display="none";
+      document.getElementById("newBatsmanPopup").style.display="none";
     }
 
-    // log
-    document.getElementById("logBox").innerHTML = data.log.join("<br>");
-    document.getElementById("logBox").scrollTop = document.getElementById("logBox").scrollHeight;
-
-    // keep select lists (striker/non-striker/startbowler) but only override AFTER match started
-    if (data.matchStarted) {
+    /* Pre-match dropdowns */
+    if (!data.matchStarted) {
+      populateInitialDropdowns();
+    } else {
       repopulateAndKeep("strikerSelect", SORTED_PLAYERS, data.striker);
       repopulateAndKeep("nonStrikerSelect", SORTED_PLAYERS, data.nonStriker);
       repopulateAndKeep("startingBowlerSelect", SORTED_PLAYERS, data.currentBowler);
     }
-  } catch (err) {
-    console.error("Refresh error", err);
+
+    /* Change Striker list */
+    const alive = data.players.filter(p=>!p.out).map(p=>p.name);
+    populateSelectNoDefault("setStrikerSelect", alive);
+
+    /* Log */
+    document.getElementById("logBox").innerHTML=data.log.join("<br>");
+    document.getElementById("logBox").scrollTop=document.getElementById("logBox").scrollHeight;
   }
+  catch(err){ console.error("refresh() error:", err); }
 }
 
-function repopulateAndKeep(id, players, currentValue) {
-  const sel = document.getElementById(id); sel.innerHTML = "";
-  players.forEach(name => {
-    const opt = document.createElement("option"); opt.value = name; opt.text = name;
-    if (currentValue && name === currentValue) opt.selected = true;
-    sel.appendChild(opt);
-  });
-}
-
-/* run initial refresh */
+/* Refresh Loop */
 refresh();
 setInterval(refresh, 1500);
 </script>
+
 </body>
 </html>
