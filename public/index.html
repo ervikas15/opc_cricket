@@ -136,6 +136,18 @@
   </div>
 </div>
 
+<!-- NEW: END INNINGS AFTER OVER POPUP -->
+<div id="overEndPopup" class="overlay">
+  <div class="popup">
+    <h3>End innings?</h3>
+    <p class="small">An over has just completed. Do you want to end the innings now?</p>
+    <div class="row" style="margin-top:10px;">
+      <button id="confirmEndInningsBtn" class="danger">End Innings</button>
+      <button id="continueInningsBtn" style="background:#ddd;color:#222">Continue</button>
+    </div>
+  </div>
+</div>
+
 <!-- MATCH SETUP -->
 <div class="card" id="matchSetupCard">
   <h3>🏏 Match Setup</h3>
@@ -212,6 +224,11 @@
     <label>Current Bowler: <span id="currentBowlerName">N/A</span></label>
     <select id="currentBowlerSelect"></select>
   </div>
+
+  <!-- NEW: Current batsman (striker) display -->
+  <div style="margin-top:10px;">
+    <label>Current Batsman (Striker): <span id="currentBatsmanName">N/A</span></label>
+  </div>
 </div>
 
 <!-- TABLES -->
@@ -238,23 +255,42 @@
 <!-- SCRIPT -->
 <script>
 /* --------------------------------------------------
-   FIXED PLAYER LIST
+   PLAYER LIST FROM EXTERNAL FILE
 -------------------------------------------------- */
-const FIXED_PLAYERS = [
-  "Rohit Sharma","Virat Kohli","KL Rahul","Hardik Pandya","Ravindra Jadeja",
-  "Jasprit Bumrah","Shubman Gill","Suryakumar Yadav","Ishan Kishan",
-  "Mohammed Shami","Washington Sundar","Shardul Thakur"
-];
+let FIXED_PLAYERS = [];
+let SORTED_PLAYERS = [];
+let playersLoaded = false;
 
-const SORTED_PLAYERS = [...FIXED_PLAYERS].sort((a,b)=>
-  a.localeCompare(b,undefined,{sensitivity:"base"})
-);
+async function loadPlayers() {
+  try {
+    const res = await fetch("/players.json");
+    if (!res.ok) throw new Error("players.json not found");
+    const data = await res.json();
+    if (!data || !Array.isArray(data.players) || data.players.length === 0) {
+      throw new Error("Invalid players.json format");
+    }
+    FIXED_PLAYERS = data.players;
+  } catch (e) {
+    console.error("Failed to load players.json, using default list", e);
+    FIXED_PLAYERS = [
+      "Rohit Sharma","Virat Kohli","KL Rahul","Hardik Pandya","Ravindra Jadeja",
+      "Jasprit Bumrah","Shubman Gill","Suryakumar Yadav","Ishan Kishan",
+      "Mohammed Shami","Washington Sundar","Shardul Thakur"
+    ];
+  }
+  SORTED_PLAYERS = [...FIXED_PLAYERS].sort((a,b)=>
+    a.localeCompare(b,undefined,{sensitivity:"base"})
+  );
+  playersLoaded = true;
+  populateInitialDropdowns();
+}
 
 /* --------------------------------------------------
    SELECT POPULATION HELPERS
 -------------------------------------------------- */
 function populateSelectWithDefault(id, players, defaultIndex=null) {
-  const sel = document.getElementById(id); sel.innerHTML="";
+  const sel = document.getElementById(id); if (!sel) return;
+  sel.innerHTML="";
   players.forEach((name,idx)=>{
     const opt=document.createElement("option");
     opt.value=name; opt.text=name;
@@ -264,7 +300,8 @@ function populateSelectWithDefault(id, players, defaultIndex=null) {
 }
 
 function populateSelectNoDefault(id, players) {
-  const sel = document.getElementById(id); sel.innerHTML="";
+  const sel = document.getElementById(id); if (!sel) return;
+  sel.innerHTML="";
   const ph=document.createElement("option"); ph.value=""; ph.text="-- Select player --";
   sel.appendChild(ph);
   players.forEach(name=>{
@@ -274,18 +311,33 @@ function populateSelectNoDefault(id, players) {
   });
 }
 
-function repopulateAndKeep(id, players, currentValue) {
-  const sel=document.getElementById(id); sel.innerHTML="";
-  players.forEach(name=>{
-    const opt=document.createElement("option");
-    opt.value=name; opt.text=name;
-    if (currentValue && name===currentValue) opt.selected=true;
-    sel.appendChild(opt);
-  });
+/* NEW: stable updater to avoid flicker on frequently-refreshed selects */
+function updateSelectIfChanged(id, players, currentValue) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+
+  const existing = Array.from(sel.options).map(o => o.value);
+  const same = existing.length === players.length &&
+               existing.every((v,i) => v === players[i]);
+
+  if (!same) {
+    sel.innerHTML = "";
+    players.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.text = name;
+      sel.appendChild(opt);
+    });
+  }
+
+  if (currentValue && players.includes(currentValue)) {
+    sel.value = currentValue;
+  }
 }
 
-/* INITIAL POPULATE */
+/* INITIAL POPULATE – called after players load */
 function populateInitialDropdowns() {
+  if (!playersLoaded) return;
   populateSelectWithDefault("strikerSelect", SORTED_PLAYERS, 0);
   populateSelectWithDefault("nonStrikerSelect", SORTED_PLAYERS, 1);
   populateSelectWithDefault("startingBowlerSelect", SORTED_PLAYERS, 2);
@@ -294,11 +346,11 @@ function populateInitialDropdowns() {
   populateSelectNoDefault("nextBowlerSelect", SORTED_PLAYERS);
   populateSelectNoDefault("setStrikerSelect", SORTED_PLAYERS);
 }
-populateInitialDropdowns();
 
 /* OTHER STATE */
 let bowlerPopupAlreadyShown = false;
 let currentExtraType = null;
+let lastOverBallsPrompted = null;
 
 /* --------------------------------------------------
    API helper
@@ -363,6 +415,22 @@ document.getElementById("endInningsBtn").addEventListener("click", async ()=>{
   if (!confirm("End 1st innings?")) return;
   await api("/api/endInnings", { method:"POST" });
   refresh();
+});
+
+/* NEW: end-innings popup buttons */
+document.getElementById("confirmEndInningsBtn").addEventListener("click", async ()=>{
+  try {
+    await api("/api/endInnings", { method:"POST" });
+  } catch (e) {
+    alert(e.message);
+  }
+  document.getElementById("overEndPopup").style.display="none";
+  lastOverBallsPrompted = null;
+  refresh();
+});
+
+document.getElementById("continueInningsBtn").addEventListener("click", ()=>{
+  document.getElementById("overEndPopup").style.display="none";
 });
 
 /* --------------------------------------------------
@@ -639,15 +707,14 @@ async function refresh(){
       bowlT.appendChild(tr);
     });
 
-    /* CURRENT BOWLER SELECT (Option B: full fixed list) */
+    /* CURRENT BOWLER SELECT – stable (no flicker) */
     const allBowlerNames=[...SORTED_PLAYERS];
     const cur=data.currentBowler || "";
-    populateSelectWithDefault(
-      "currentBowlerSelect",
-      allBowlerNames,
-      allBowlerNames.indexOf(cur)>=0 ? allBowlerNames.indexOf(cur) : null
-    );
+    updateSelectIfChanged("currentBowlerSelect", allBowlerNames, cur);
     document.getElementById("currentBowlerName").innerText = cur || "N/A";
+
+    /* CURRENT BATSMAN DISPLAY */
+    document.getElementById("currentBatsmanName").innerText = data.striker || "N/A";
 
     /* Show next-bowler popup only once per over */
     if (data.awaitingNewBowler && !bowlerPopupAlreadyShown) {
@@ -670,13 +737,15 @@ async function refresh(){
       document.getElementById("newBatsmanPopup").style.display="none";
     }
 
-    /* Pre-match dropdowns */
-    if (!data.matchStarted) {
-      populateInitialDropdowns();
-    } else {
-      repopulateAndKeep("strikerSelect", SORTED_PLAYERS, data.striker);
-      repopulateAndKeep("nonStrikerSelect", SORTED_PLAYERS, data.nonStriker);
-      repopulateAndKeep("startingBowlerSelect", SORTED_PLAYERS, data.currentBowler);
+    /* End-innings popup at end of each over (only innings 1) */
+    const completedOver = data.matchStarted &&
+                          data.innings === 1 &&
+                          data.balls > 0 &&
+                          data.balls % 6 === 0;
+
+    if (completedOver && lastOverBallsPrompted !== data.balls) {
+      document.getElementById("overEndPopup").style.display = "flex";
+      lastOverBallsPrompted = data.balls;
     }
 
     /* Change Striker list */
@@ -690,7 +759,8 @@ async function refresh(){
   catch(err){ console.error("refresh() error:", err); }
 }
 
-/* Refresh Loop */
+/* Refresh Loop & player loading */
+loadPlayers();
 refresh();
 setInterval(refresh, 1500);
 </script>
