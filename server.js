@@ -351,20 +351,26 @@ app.post("/api/run/:value", (req, res) => {
 
   // odd run = rotate strike
   if (runs % 2 === 1) {
-    [state.striker, state.nonStriker] = [
-      state.nonStriker,
-      state.striker,
-    ];
-    log("Strike rotated (odd runs)");
+    if (!state.lastManStandingMode) { // <--- Last Man Standing check
+      [state.striker, state.nonStriker] = [
+        state.nonStriker,
+        state.striker,
+      ];
+      log("Strike rotated (odd runs)");
+    } else {
+      log("Strike not rotated (Last Man Standing)");
+    }
   }
 
   // end of over
   if (state.balls % 6 === 0) {
     // rotate strike
-    [state.striker, state.nonStriker] = [
-      state.nonStriker,
-      state.striker,
-    ];
+    if (!state.lastManStandingMode) { // <--- Last Man Standing check
+      [state.striker, state.nonStriker] = [
+        state.nonStriker,
+        state.striker,
+      ];
+    }
 
     state.lastOverBowler = state.currentBowler;
     state.awaitingNewBowler = true;
@@ -629,25 +635,29 @@ app.post("/api/changeStrike", (req, res) => {
         .status(400)
         .json({ message: "Name required" });
 
-    if (!state.players[name] || state.players[name].out)
-      return res
-        .status(400)
-        .json({ message: "Player unavailable" });
+    // 1. Ensure the player object exists in state.players (creates it if needed)
+    ensurePlayerExists(name); 
 
+    // 2. FORCIBLY set the striker. The check for state.players[name].out is intentionally removed
+    
     if (state.nonStriker === name) {
+      // If the selected player is the non-striker, just swap them.
       [state.striker, state.nonStriker] = [
         state.nonStriker,
         state.striker,
       ];
-      log(`Strike set to ${name}`);
-    } else {
+      log(`Strike set to ${name} (was non-striker)`);
+    } else if (state.striker !== name) {
+      // If the selected player is neither the striker nor non-striker, 
+      // the current striker becomes the non-striker, and the selected player becomes the striker.
       state.nonStriker = state.striker;
       state.striker = name;
-      log(`Strike changed - new striker: ${name}`);
+      log(`Strike changed - new striker: ${name} (forced)`);
     }
+    // If state.striker === name, no change is needed.
 
     return res.json({
-      message: "Striker changed",
+      message: "Striker changed (forced)",
       state,
     });
   }
