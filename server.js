@@ -51,6 +51,7 @@ let state = {
   nextBatsmanIndex: 2,
 
   log: [],
+  finalResult: null, // Stores the final match result message
 };
 
 function log(msg) {
@@ -106,6 +107,7 @@ function checkForMatchEnd(res) {
     } WIN by ${wicketsLeft} wickets!`;
     log(msg);
     state.matchStarted = false;
+    state.finalResult = msg; // STORED
     res.json({ message: "Match ended", finalResult: msg, state });
     return true;
   }
@@ -121,6 +123,7 @@ function checkForMatchEnd(res) {
     } WIN by ${runsDiff} runs!`;
     log(msg);
     state.matchStarted = false;
+    state.finalResult = msg; // STORED
     res.json({
       message: "Match ended (overs complete)",
       finalResult: msg,
@@ -161,6 +164,7 @@ app.get("/api/score", (req, res) => {
     matchStarted: state.matchStarted,
     teams: state.teams,
     log: state.log,
+    finalResult: state.finalResult, // RETURNED
   });
 });
 
@@ -206,6 +210,7 @@ app.post("/api/createTeams", (req, res) => {
   state.nextBatsmanIndex = 2;
 
   state.log = [];
+  state.finalResult = null; // Also clear here for consistency
 
   log(
     `Teams created: ${state.teams.teamA.name} vs ${state.teams.teamB.name}`
@@ -249,6 +254,7 @@ app.post("/api/setTeamsAndMatch", (req, res) => {
   state.lastManStandingMode = false;
 
   state.matchStarted = true;
+  state.finalResult = null; // Clear if starting a new innings/match
 
   log(
     `Innings ${state.innings} started. ${state.teams[state.battingTeam].name} batting.`
@@ -295,6 +301,7 @@ app.post("/api/endInnings", (req, res) => {
   state.awaitingNewBowler = false;
   state.lastOverBowler = null;
   state.lastManStandingMode = false;
+  state.finalResult = null; // Clear if we manually end innings 1
 
   log(
     `Innings 1 ended. Target for ${state.teams[state.battingTeam].name}: ${state.target}`
@@ -374,7 +381,6 @@ app.post("/api/run/:value", (req, res) => {
 
     state.lastOverBowler = state.currentBowler;
     state.awaitingNewBowler = true;
-    state.matchStarted = false;
 
     log(
       `End of over ${formatOvers(
@@ -430,9 +436,66 @@ app.post("/api/wicket", (req, res) => {
   // last-man case
   if (state.lastManStandingMode) {
     state.striker = null;
-    state.matchStarted = false;
+    state.matchStarted = false; // Stop scoring immediately
+
+    // IF INNINGS 1: Transition to Innings 2 setup
+    if (state.innings === 1) {
+        state.innings1Score = {
+            score: state.score,
+            wickets: state.wickets,
+            balls: state.balls,
+            battingTeam: state.battingTeam,
+        };
+
+        state.target = state.score + 1;
+        state.innings = 2;
+
+        const newBat = state.bowlingTeam;
+        const newBowl = state.battingTeam;
+
+        state.battingTeam = newBat;
+        state.bowlingTeam = newBowl;
+
+        state.score = 0;
+        state.wickets = 0;
+        state.balls = 0;
+
+        state.nonStriker = null;
+        state.currentBowler = null;
+
+        state.bowlers = [];
+        state.awaitingNewBatsman = false;
+        state.awaitingNewBowler = false;
+        state.lastOverBowler = null;
+        state.lastManStandingMode = false;
+        
+        log(
+          `Innings 1 ended (Last Man Out). Target for ${state.teams[state.battingTeam].name}: ${state.target}`
+        );
+        
+        return res.json({
+          message: "Last man out. Innings 1 ended. Setup innings 2.",
+          state,
+        });
+    }
+
+    // IF INNINGS 2: Match is over
+    const runsToWin = state.target - 1;
+    const isWin = state.score >= state.target;
+    let msg = "Match ended";
+    if (isWin) {
+      const wicketsLeft = Math.max(0, Object.keys(state.players).length - state.wickets);
+      msg = `${state.teams[state.battingTeam].name} WIN by ${wicketsLeft} wickets!`;
+    } else {
+      const runsDiff = runsToWin - state.score;
+      msg = `${state.teams[state.bowlingTeam].name} WIN by ${runsDiff} runs!`;
+    }
+
+    state.finalResult = msg; // STORED when match ends via last man out in Innings 2
+
     return res.json({
-      message: "Last man out. Innings ended",
+      message: "Last man out. Match ended",
+      finalResult: msg,
       state,
     });
   }
@@ -445,7 +508,6 @@ app.post("/api/wicket", (req, res) => {
   if (state.balls % 6 === 0) {
     state.awaitingNewBowler = true;
     state.lastOverBowler = state.currentBowler;
-    state.matchStarted = false;
   }
 
   res.json({
@@ -561,6 +623,9 @@ app.post("/api/extras", (req, res) => {
     log(`Wide +${extra}`);
   }
 
+  // Check for match end after runs are added (only relevant for Innings 2)
+  if (checkForMatchEnd(res)) return;
+
   res.json({ message: "Extras recorded", state });
 });
 
@@ -621,6 +686,9 @@ app.post("/api/changeStrike", (req, res) => {
       .json({ message: "Match not started" });
 
   if (action === "swap") {
+    if (state.lastManStandingMode)
+      return res.status(400).json({ message: "Cannot swap strike in Last Man Standing mode" });
+      
     [state.striker, state.nonStriker] = [
       state.nonStriker,
       state.striker,
@@ -629,7 +697,8 @@ app.post("/api/changeStrike", (req, res) => {
     return res.json({ message: "Strike swapped", state });
   }
 
-  if (action === "set") {
+  // Logic for setting the Striker
+  if (action === "set_striker") { // Changed from 'set' to 'set_striker'
     if (!name)
       return res
         .status(400)
@@ -638,9 +707,7 @@ app.post("/api/changeStrike", (req, res) => {
     // 1. Ensure the player object exists in state.players (creates it if needed)
     ensurePlayerExists(name); 
 
-    // 2. FORCIBLY set the striker. The check for state.players[name].out is intentionally removed
-    
-    if (state.nonStriker === name) {
+    if (state.nonStriker === name && !state.lastManStandingMode) {
       // If the selected player is the non-striker, just swap them.
       [state.striker, state.nonStriker] = [
         state.nonStriker,
@@ -650,7 +717,12 @@ app.post("/api/changeStrike", (req, res) => {
     } else if (state.striker !== name) {
       // If the selected player is neither the striker nor non-striker, 
       // the current striker becomes the non-striker, and the selected player becomes the striker.
-      state.nonStriker = state.striker;
+      if (!state.lastManStandingMode) {
+        state.nonStriker = state.striker;
+      } else {
+        // In L.M.S. mode, nonStriker is null
+        state.nonStriker = null;
+      }
       state.striker = name;
       log(`Strike changed - new striker: ${name} (forced)`);
     }
@@ -661,6 +733,38 @@ app.post("/api/changeStrike", (req, res) => {
       state,
     });
   }
+  
+  // New logic for setting the Non-Striker
+  if (action === "set_non_striker") {
+      if (!name)
+          return res.status(400).json({ message: "Name required" });
+          
+      // Cannot set non-striker if in Last Man Standing mode
+      if (state.lastManStandingMode)
+          return res.status(400).json({ message: "Cannot set non-striker in Last Man Standing mode" });
+          
+      // Ensure the player object exists in state.players (creates it if needed)
+      ensurePlayerExists(name); 
+
+      // Prevent setting a player who is already the striker
+      if (state.striker === name) {
+          return res.status(400).json({ message: `${name} is already the striker.` });
+      }
+      
+      // Prevent setting the same non-striker
+      if (state.nonStriker === name) {
+          return res.json({ message: "Non-Striker is already set to that player.", state });
+      }
+
+      state.nonStriker = name;
+      log(`Non-Striker changed to: ${name}`);
+
+      return res.json({
+          message: "Non-Striker changed (forced)",
+          state,
+      });
+  }
+
 
   return res
     .status(400)
@@ -702,6 +806,7 @@ app.post("/api/reset", (req, res) => {
     battingOrder: [],
     nextBatsmanIndex: 2,
     log: [],
+    finalResult: null, // CLEARED
   };
 
   res.json({ message: "Reset done", state });
