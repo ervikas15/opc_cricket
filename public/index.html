@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Cricket Scorer</title>
+  <title>OPC Cricket Scorer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     /* STUMPS APP INSPIRED STYLES */
@@ -290,16 +290,16 @@
 <body>
 
 <div class="container">
-    <h1><img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/Cricket_stumps_and_bail.svg" style="height: 30px; margin-right: 10px; vertical-align: middle;"> STUMPS Scorer</h1>
+    <h1><img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/Cricket_stumps_and_bail.svg" style="height: 30px; margin-right: 10px; vertical-align: middle;"> OPC Cricket Scorer</h1>
 
     <div id="setupDiv" class="card">
         <h2>Match Setup</h2>
         
         <div id="teamSetup">
             <label for="teamA_name">Team A Name</label>
-            <input type="text" id="teamA_name" value="Dragons">
+            <input type="text" id="teamA_name" value="Mandai Monks">
             <label for="teamB_name">Team B Name</label>
-            <input type="text" id="teamB_name" value="Hawks">
+            <input type="text" id="teamB_name" value="Seletar">
             <button onclick="createTeams()">Confirm Team Names</button>
             <hr>
             
@@ -308,7 +308,6 @@
         
         <div id="inningsSetup" style="display:none;">
             <h2>Innings Setup</h2>
-            <p style="font-size: 0.9em;">All <span id="totalPlayersCount">0</span> available players are considered part of the Playing XI for this simplified mode. Match is set to **Open Overs**.</p>
             
             <hr>
 
@@ -686,8 +685,6 @@
             if (data.setupPhase === 3) {
                  document.getElementById('teamSetup').style.display = 'none';
                  document.getElementById('inningsSetup').style.display = 'block';
-                 
-                 document.getElementById("totalPlayersCount").textContent = data.allPlayerNames ? data.allPlayerNames.length : 0;
 
                  const teamA_name = data.teams.teamA.name;
                  const teamB_name = data.teams.teamB.name;
