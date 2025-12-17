@@ -772,14 +772,15 @@ app.post("/api/extras", (req, res) => {
 
   takeSnapshot(); // SNAPSHOT
 
-  const { type, extraRuns } = req.body;
+  const { type, runs } = req.body;
 
   if (!type || (type !== "wide" && type !== "noball"))
     return res
       .status(400)
       .json({ message: "Invalid extra type" });
 
-  const extra = parseInt(extraRuns) || 0;
+  const extra = parseInt(runs);
+  log(extra);
   let totalExtra = 1 + extra; // +1 penalty + runs
 
   // base +1 always
@@ -814,16 +815,16 @@ app.post("/api/extras", (req, res) => {
 
     state.score += extra;
     
-    // Wide counts on bowler totalBalls as it resets the ball count for the over.
-    if (state.currentBowler) {
-        ensureBowlerExists(state.currentBowler).totalBalls++;
-        log("Bowler total balls incremented for wide.");
-    }
+    // // Wide counts on bowler totalBalls as it resets the ball count for the over.
+    // if (state.currentBowler) {
+    //     ensureBowlerExists(state.currentBowler).totalBalls++;
+    //     log("Bowler total balls incremented for wide.");
+    // }
     
     log(`Wide +${extra} (Total +${totalExtra})`);
     
     // Rotate strike if odd total extra runs
-    if (totalExtra % 2 === 1) {
+    if (runs % 2 === 1) {
         if (!state.lastManStandingMode) { 
             [state.striker, state.nonStriker] = [state.nonStriker, state.striker];
             log("Strike rotated (odd total runs on wide)");

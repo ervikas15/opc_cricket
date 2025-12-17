@@ -150,8 +150,8 @@
     }
     .grid { 
         display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); 
-        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); 
+        gap: 5px;
     }
     .text-center { text-align: center; }
     .text-right { text-align: right; }
@@ -299,7 +299,7 @@
             <label for="teamA_name">Team A Name</label>
             <input type="text" id="teamA_name" value="Mandai Monks">
             <label for="teamB_name">Team B Name</label>
-            <input type="text" id="teamB_name" value="Seletar">
+            <input type="text" id="teamB_name" value="Seletar Sharks">
             <button onclick="createTeams()">Confirm Team Names</button>
             <hr>
             
@@ -336,6 +336,33 @@
         </div>
     </div>
 
+    <div id="controlsDiv" class="card" style="display:none;">
+        <h2>Scoring Actions</h2>
+        
+        <div class="grid">
+            <button onclick="recordRun(0)">0</button>
+            <button onclick="recordRun(1)">1</button>
+            <button onclick="recordRun(2)">2</button>
+            <button onclick="recordRun(3)">3</button>
+            <button onclick="recordRun(4)">4</button>
+            <button onclick="recordRun(5)">5</button>
+            <button onclick="recordRun(6)">6</button>
+        </div>
+
+        <div class="inline" style="margin-top: 15px;">
+            <button class="extras" onclick="recordWide()">WIDE</button>
+            <button class="secondary" onclick="document.getElementById('wideextrasPopup').style.display='flex'">WIDE(+Extras)</button>
+            <button class="extras" onclick="recordNoBall()">NB</button>
+            <button class="secondary" onclick="document.getElementById('nbextrasPopup').style.display='flex'">NB(+Extras)</button>
+            <button class="danger" onclick="showWicketPopup()">WICKET</button>
+        </div>
+        
+        <div class="inline" style="margin-top: 15px;">
+            <button class="secondary" style="flex-grow: 1;" onclick="showScorecard()" id="viewScorecardButton">VIEW SCORECARD</button>
+            <button class="danger" style="flex-grow: 1;" onclick="undoLastAction()" id="undoButton" disabled>UNDO</button>
+        </div>
+    </div>
+
     <div id="statsDiv" class="card" style="display:none;">
         <h2>Batting</h2>
         <div id="strikerStat" class="player-stat">
@@ -357,32 +384,6 @@
         <div id="lastBallBox"></div>
         
         <button class="secondary" onclick="document.getElementById('changeStrikerPopup').style.display='flex'">ADVANCED STRIKE/BOWLER</button>
-    </div>
-
-    <div id="controlsDiv" class="card" style="display:none;">
-        <h2>Scoring Actions</h2>
-        
-        <div class="grid">
-            <button onclick="recordRun(0)">0 Run</button>
-            <button onclick="recordRun(1)">1 Run</button>
-            <button onclick="recordRun(2)">2 Runs</button>
-            <button onclick="recordRun(3)">3 Runs</button>
-            <button onclick="recordRun(4)">4 Runs</button>
-            <button onclick="recordRun(5)">5 Runs</button>
-            <button onclick="recordRun(6)">6 Runs</button>
-        </div>
-
-        <div class="inline" style="margin-top: 15px;">
-            <button class="extras" onclick="recordWide()">WIDE (+1)</button>
-            <button class="extras" onclick="recordNoBall()">NB (+1)</button>
-            <button class="danger" onclick="showWicketPopup()">WICKET</button>
-            <button class="secondary" onclick="document.getElementById('extrasPopup').style.display='flex'">ADVANCED EXTRAS</button>
-        </div>
-        
-        <div class="inline" style="margin-top: 15px;">
-            <button class="secondary" style="flex-grow: 1;" onclick="showScorecard()" id="viewScorecardButton">VIEW SCORECARD</button>
-            <button class="danger" style="flex-grow: 1;" onclick="undoLastAction()" id="undoButton" disabled>UNDO</button>
-        </div>
     </div>
     
     <div id="metaDiv" class="card">
@@ -449,18 +450,35 @@
     </div>
 </div>
 
-<div id="extrasPopup" class="popup-overlay">
+<div id="wideextrasPopup" class="popup-overlay">
     <div class="popup-content">
-        <h2>Record Advanced Extras (W+N or NB+N)</h2>
+        <h2>Record Extras with WIDE</h2>
         <label for="extraType">Extra Type:</label>
         <select id="extraType">
-            <option value="wide">Wide (W+1)</option>
-            <option value="noball">No Ball (NB+1)</option>
+            <option value="wide">Wide</option>
         </select>
-        <label for="extraRuns">Additional Runs (excluding penalty +1):</label>
-        <input type="number" id="extraRuns" value="0" min="0">
-        <button onclick="recordAdvancedExtras()">Record Extras</button>
-        <button class="secondary" onclick="document.getElementById('extrasPopup').style.display='none'">Cancel</button>
+        <div class="form-group">
+            <label for="extraRunsInput">Runs Scored by Batsman/Byes (excluding penalty):</label>
+            <input type="number" id="extraRunsInput" value="0" min="0" max="6" step="1">
+        </div>
+        <button onclick="recordAdvancedExtras('wide',document.getElementById('extraRunsInput').value)">Record Extras</button>
+        <button class="secondary" onclick="document.getElementById('wideextrasPopup').style.display='none'">Cancel</button>
+    </div>
+</div>
+
+<div id="nbextrasPopup" class="popup-overlay">
+    <div class="popup-content">
+        <h2>Record Extras with No-Ball</h2>
+        <label for="extraType">Extra Type:</label>
+        <select id="extraType">
+            <option value="noball">No Ball</option>
+        </select>
+        <div class="form-group">
+            <label for="extraRunsInput">Runs Scored by Batsman/Byes (excluding penalty):</label>
+            <input type="number" id="extraRunsInput" value="0" min="0" max="6" step="1">
+        </div>
+        <button onclick="recordAdvancedExtras('noball',document.getElementById('extraRunsInput').value)">Record Extras</button>
+        <button class="secondary" onclick="document.getElementById('nbextrasPopup').style.display='none'">Cancel</button>
     </div>
 </div>
 
@@ -1002,21 +1020,24 @@
             .catch(() => {});
     }
     
-    function recordAdvancedExtras() {
+    function recordAdvancedExtras(type,exruns) {
         if (!state.matchStarted) return alert("Match not started or paused.");
         
-        const extraType = document.getElementById('extraType').value;
-        const extraRuns = parseInt(document.getElementById('extraRuns').value) || 0;
+        const extraType = type;
+        const extraRuns = parseInt(exruns);
         
         if (extraRuns < 0) {
              alert("Additional runs must be 0 or more.");
              return;
         }
         
-        postData(`${API_BASE}/extra`, { type: extraType, runs: extraRuns })
+        postData(`${API_BASE}/extras`, { type: extraType, runs: extraRuns })
             .then(() => {
-                 document.getElementById('extrasPopup').style.display='none';
-                 // Reset inputs
+                if (extraType == 'wide') {
+                    document.getElementById('wideextrasPopup').style.display='none';
+            } else if (extraType == 'noball') {
+                    document.getElementById('nbextrasPopup').style.display='none';
+            }
                  document.getElementById('extraRuns').value = 0;
                  refresh();
             })
