@@ -869,7 +869,7 @@ app = gr.mount_gradio_app(
     app,
     demo,
     path="/",
-    auth=[("scorer", "cricket"), ("admin", "admin123")],
+    auth=[("opc", "cricket"), ("admin", "admin123")],
     auth_message="Login to Cricket Scorer"
 )
 
