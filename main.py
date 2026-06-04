@@ -59,7 +59,7 @@ class MatchSetup(BaseModel):
     team1_name: str
     team2_name: str
     overs: int
-    players_per_team: int = 11
+    players_per_team: int = 99
 
 
 class OpeningSelection(BaseModel):
@@ -127,11 +127,9 @@ def get_last_bowler(innings: dict) -> Optional[str]:
 
 
 def check_innings_complete(innings: dict) -> bool:
-    """Check if the current innings is over."""
+    """Check if the current innings is over (overs done or target chased)."""
     overs_done = innings["balls"] // 6
     if overs_done >= match_data["overs_limit"]:
-        return True
-    if innings["wickets"] >= match_data["players_per_team"] - 1:
         return True
     if innings["target"] and innings["runs"] >= innings["target"]:
         return True
@@ -146,7 +144,9 @@ def get_match_result() -> str:
     inn2 = match_data["innings"][1]
 
     if inn2["runs"] >= (inn1["runs"] + 1):
-        wickets_remaining = match_data["players_per_team"] - 1 - inn2["wickets"]
+        # Count batsmen who are still not out
+        not_out = sum(1 for b in inn2["batsmen"].values() if not b["out"])
+        wickets_remaining = max(not_out, 1)
         return f"{inn2['batting_team']} won by {wickets_remaining} wicket{'s' if wickets_remaining != 1 else ''}"
     elif inn2["runs"] < inn1["runs"]:
         run_diff = inn1["runs"] - inn2["runs"]
@@ -180,8 +180,7 @@ def create_match(setup: MatchSetup):
         raise HTTPException(400, "Team names are required")
     if setup.overs < 1 or setup.overs > 50:
         raise HTTPException(400, "Overs must be between 1 and 50")
-    if setup.players_per_team < 2 or setup.players_per_team > len(PLAYER_ROSTER):
-        raise HTTPException(400, f"Players per team must be between 2 and {len(PLAYER_ROSTER)}")
+    # players_per_team is kept for compatibility but no longer limits innings
 
     # All roster players available for both teams (mixed teams)
     all_players = list(PLAYER_ROSTER)
@@ -869,7 +868,7 @@ app = gr.mount_gradio_app(
     app,
     demo,
     path="/",
-    auth=[("opc", "cricket"), ("admin", "admin123")],
+    auth=[("opc", "opc"), ("admin", "admin")],
     auth_message="Login to Cricket Scorer"
 )
 

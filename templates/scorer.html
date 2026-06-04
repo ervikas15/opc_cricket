@@ -587,15 +587,34 @@ select {
 /* Bottom Bar */
 .bottom-bar {
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 0 2px 12px;
 }
 .bottom-bar .btn {
-  flex: 1;
-  padding: 12px 4px;
-  font-size: 0.82rem;
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 0;
+  padding: 16px 6px;
+  font-size: 0.85rem;
   font-weight: 700;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--bg-card-alt);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+.bottom-bar .btn:active {
+  transform: scale(0.95);
+}
+.bottom-bar .btn-end-match {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.3);
+  color: var(--accent-red);
 }
 .partnership-info {
   font-size: 0.72rem;
@@ -993,12 +1012,7 @@ select {
         </div>
         <input type="number" id="overs-custom" placeholder="Or enter custom overs" min="1" max="100" style="margin-top:6px;">
       </div>
-      <div class="form-group">
-        <div class="player-count-row">
-          <label>Players per team:</label>
-          <input type="number" id="player-count" value="4" min="2" max="11">
-        </div>
-      </div>
+
       <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="createMatch()">Create Match</button>
     </div>
   </div>
@@ -1110,11 +1124,12 @@ select {
       Partnership: <span class="p-val">0</span> (<span class="p-val">0</span> balls)
     </div>
     <div class="bottom-bar">
-      <button class="btn btn-ghost" onclick="showScorecard()">📊 Card</button>
-      <button class="btn btn-ghost" onclick="swapStrike()">🔄 Swap</button>
-      <button class="btn btn-ghost" onclick="showChangeBatsmanModal()">🏏 Bat</button>
-      <button class="btn btn-ghost" onclick="showChangeBowlerModal()">🎯 Bowl</button>
-      <button class="btn btn-ghost" style="color:var(--accent-red);" onclick="endInnings()">⏹ End</button>
+      <button class="btn" onclick="showScorecard()">📊 Scorecard</button>
+      <button class="btn" onclick="showChangeBatsmanModal()">🏏 Change Bat</button>
+      <button class="btn" onclick="showChangeBowlerModal()">🎯 Change Bowl</button>
+      <button class="btn" onclick="swapStrike()">🔄 Swap Bat</button>
+      <button class="btn" onclick="endInnings()">⏹ End Innings</button>
+      <button class="btn btn-end-match" onclick="endMatch()">🚫 End Match</button>
     </div>
   </div>
 
@@ -1333,10 +1348,7 @@ document.getElementById('overs-custom').addEventListener('input', function() {
   }
 });
 
-document.getElementById('player-count').addEventListener('change', function() {
-  let v = Math.max(2, Math.min(11, parseInt(this.value) || 4));
-  this.value = v;
-});
+
 
 async function createMatch() {
   const team1Name = document.getElementById('team1-name').value.trim() || 'Team 1';
@@ -1351,13 +1363,11 @@ async function createMatch() {
     if (sel) overs = parseInt(sel.dataset.ov);
   }
 
-  const playersPerTeam = parseInt(document.getElementById('player-count').value) || 4;
 
   const data = await api('/api/new-match', 'POST', {
     team1_name: team1Name,
     team2_name: team2Name,
-    overs: overs,
-    players_per_team: playersPerTeam
+    overs: overs
   });
 
   if (data) {
@@ -1732,6 +1742,27 @@ async function endInnings() {
   }
 }
 
+// ===== END MATCH =====
+async function endMatch() {
+  if (!matchState) return;
+  const msg = '⚠️ End the entire match?\nThis will finish the match immediately and show the final result.\nThis action cannot be undone.';
+  if (!confirm(msg)) return;
+
+  // If we're in the 1st innings, end it first, then end the 2nd
+  // Simplest approach: call end-innings which transitions appropriately
+  // If 1st innings → goes to innings_break, we then mark completed
+  // If 2nd innings → goes to completed directly
+  const data = await api('/api/end-innings', 'POST');
+  if (data) {
+    matchState = data.match || data;
+    // If it went to innings_break (1st innings ended), force complete
+    if (matchState.status === 'innings_break') {
+      matchState.status = 'completed';
+    }
+    renderState(matchState);
+  }
+}
+
 // ===== CHANGE BATSMAN =====
 let replacingBatsman = 'striker'; // 'striker' or 'non_striker'
 
@@ -1828,7 +1859,7 @@ async function startInnings2() {
 function newMatch() {
   matchState = null;
   showScreen('setup-screen');
-  document.title = 'Cricket Scorer';
+  document.title = 'OPC Cricket Scorer';
 }
 
 // ===== SCORECARD =====
