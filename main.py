@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from typing import Optional
 import gradio as gr
 import os
+import httpx
+import json
 
 # ============================================================
 # FastAPI App
@@ -60,6 +62,12 @@ class MatchSetup(BaseModel):
     team2_name: str
     overs: int
     players_per_team: int = 99
+    team1_players: Optional[list[str]] = None
+    team2_players: Optional[list[str]] = None
+
+
+class GenerateTeamsRequest(BaseModel):
+    available_players: Optional[list[str]] = None
 
 
 class OpeningSelection(BaseModel):
@@ -180,22 +188,22 @@ def create_match(setup: MatchSetup):
         raise HTTPException(400, "Team names are required")
     if setup.overs < 1 or setup.overs > 50:
         raise HTTPException(400, "Overs must be between 1 and 50")
-    # players_per_team is kept for compatibility but no longer limits innings
 
-    # All roster players available for both teams (mixed teams)
-    all_players = list(PLAYER_ROSTER)
+    # Use provided team players or fallback to all roster players
+    team1_players = setup.team1_players if setup.team1_players else list(PLAYER_ROSTER)
+    team2_players = setup.team2_players if setup.team2_players else list(PLAYER_ROSTER)
 
     match_data = {
         "status": "setup",
-        "team1": {"name": setup.team1_name.strip(), "players": all_players},
-        "team2": {"name": setup.team2_name.strip(), "players": all_players},
+        "team1": {"name": setup.team1_name.strip(), "players": team1_players},
+        "team2": {"name": setup.team2_name.strip(), "players": team2_players},
         "overs_limit": setup.overs,
         "players_per_team": setup.players_per_team,
         "current_innings": 0,
         "innings": [
             create_innings(
                 setup.team1_name.strip(), setup.team2_name.strip(),
-                all_players, all_players
+                team1_players, team2_players
             )
         ],
     }
@@ -794,6 +802,90 @@ def reset_match():
 def get_players():
     """Return predefined player roster."""
     return {"players": PLAYER_ROSTER}
+
+
+@app.post("/api/generate-teams")
+async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
+    """Use OpenRouter API to generate balanced teams based on player ratings."""
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="OPENROUTER_API_KEY environment variable is not set.")
+    
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player-details.csv")
+    try:
+        with open(csv_path, "r") as f:
+            lines = f.read().strip().split("\n")
+            if req and req.available_players:
+                header = lines[0]
+                filtered_lines = [header]
+                players_lower = [p.lower() for p in req.available_players]
+                for line in lines[1:]:
+                    if not line.strip(): continue
+                    player_name = line.split(",")[0].strip()
+                    if player_name.lower() in players_lower:
+                        filtered_lines.append(line)
+                player_ratings_csv = "\n".join(filtered_lines)
+            else:
+                player_ratings_csv = "\n".join(lines)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read player-details.csv: {e}")
+
+    prompt = (
+        "Here is a list of players with their batting, bowling, and fielding ratings.\n"
+        f"```csv\n{player_ratings_csv}\n```\n\n"
+        "Your task is to divide these players into two balanced teams (Team 1 and Team 2) "
+        "such that the total overall skill (batting, bowling, fielding) of both teams are as close as possible.\n"
+        "CRITICAL REQUIREMENTS:\n"
+        "1. Both Team 1 and Team 2 MUST have an exactly equal number of players.\n"
+        "2. If the total number of players provided is an odd number, you MUST select exactly one player to be 'common' (this player will play for both teams). "
+        "The remaining players must be divided equally between Team 1 and Team 2.\n"
+        "3. Return ONLY a valid JSON object with the keys 'team1' (list of strings), 'team2' (list of strings), and optionally 'common' (a single string if there is an odd number of players).\n"
+        "Do not include markdown blocks or any other text."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "openai/gpt-oss-120b:free",
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            
+            # Clean up potential markdown wrapper
+            if content.startswith("```json"):
+                content = content[7:]
+            elif content.startswith("```"):
+                content = content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            
+            teams = json.loads(content.strip())
+            if "team1" not in teams or "team2" not in teams:
+                raise ValueError("JSON response missing team1 or team2 keys.")
+            
+            common_player = teams.get("common")
+            if common_player:
+                teams["team1"].append(common_player)
+                teams["team2"].append(common_player)
+                
+            return {
+                "status": "ok", 
+                "team1": teams["team1"], 
+                "team2": teams["team2"],
+                "common": common_player
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM generation failed: {str(e)}")
 
 
 # ============================================================

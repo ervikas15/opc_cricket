@@ -986,6 +986,42 @@ select {
   <!-- LOADING -->
   <div class="loading-overlay" id="loading"><div class="spinner"></div></div>
 
+  <!-- ===== HOME SCREEN ===== -->
+  <div class="screen" id="home-screen">
+    <div style="text-align:center; padding: 40px 20px;">
+      <div style="font-size: 4em; margin-bottom: 16px;">🏏</div>
+      <h1 style="font-size: 1.8em; margin-bottom: 8px; font-weight: 800;">OPC Cricket Scorer</h1>
+      <p style="color: var(--text-muted); margin-bottom: 40px;">What would you like to do?</p>
+      
+      <button class="btn btn-block" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; margin-bottom: 16px; padding: 18px; font-size: 1.1em;" onclick="showScreen('team-gen-screen'); loadPlayersForGen();">✨ Create Balanced Teams</button>
+      
+      <button class="btn btn-primary btn-block" style="padding: 18px; font-size: 1.1em;" onclick="showScreen('setup-screen')">▶️ Start Scoring</button>
+    </div>
+  </div>
+
+  <!-- ===== TEAM GEN SCREEN ===== -->
+  <div class="screen" id="team-gen-screen">
+    <div class="setup-header">
+      <h1>✨ AI Team Generator</h1>
+      <p>Select players playing today</p>
+    </div>
+    <div class="card anim-fade">
+      <div id="player-checkboxes" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom: 16px;">
+        <!-- Checkboxes injected here -->
+      </div>
+      <button type="button" class="btn btn-ghost btn-block" style="margin-bottom:12px; color: var(--accent-purple); border: 1px dashed var(--accent-purple);" onclick="generateTeams()">Generate Teams</button>
+      
+      <div id="ai-teams-preview" style="display:none; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; padding: 12px; background: rgba(124,58,237,0.05); border-radius: var(--radius-sm); border: 1px solid rgba(124,58,237,0.2);">
+        <strong style="color:var(--accent-purple); display:block; margin-bottom:8px; font-size: 1rem;">Generated Teams:</strong>
+        <b>Team 1:</b> <span id="preview-team1"></span><br><br>
+        <b>Team 2:</b> <span id="preview-team2"></span>
+      </div>
+      
+      <button class="btn btn-primary btn-block" style="margin-top:12px; display:none;" id="btn-proceed-setup" onclick="showScreen('setup-screen')">Proceed to Match Setup</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:8px;" onclick="showScreen('home-screen')">Back to Home</button>
+    </div>
+  </div>
+
   <!-- ===== SETUP SCREEN ===== -->
   <div class="screen" id="setup-screen">
     <div class="setup-header">
@@ -1289,6 +1325,8 @@ let selectedExtraRuns = 0;
 let lastBowler = null;
 let scViewInnings = 0;
 let playerRoster = [];
+let aiTeam1 = null;
+let aiTeam2 = null;
 
 // ===== API HELPERS =====
 async function api(path, method = 'GET', body = null) {
@@ -1350,6 +1388,63 @@ document.getElementById('overs-custom').addEventListener('input', function() {
 
 
 
+function loadPlayersForGen() {
+  const container = document.getElementById('player-checkboxes');
+  container.innerHTML = '';
+  playerRoster.forEach(p => {
+    const lbl = document.createElement('label');
+    lbl.style.display = 'flex';
+    lbl.style.alignItems = 'center';
+    lbl.style.gap = '6px';
+    lbl.style.fontSize = '0.85rem';
+    lbl.style.background = 'var(--btn-default)';
+    lbl.style.padding = '6px 10px';
+    lbl.style.borderRadius = 'var(--radius-sm)';
+    lbl.style.cursor = 'pointer';
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = p;
+    cb.checked = false; // Default unchecked
+    cb.className = 'player-gen-cb';
+    
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(p));
+    container.appendChild(lbl);
+  });
+  document.getElementById('ai-teams-preview').style.display = 'none';
+  document.getElementById('btn-proceed-setup').style.display = 'none';
+}
+
+async function generateTeams() {
+  const checkboxes = document.querySelectorAll('.player-gen-cb:checked');
+  const selectedPlayers = Array.from(checkboxes).map(cb => cb.value);
+  
+  if (selectedPlayers.length < 2) {
+    alert("Please select at least 2 players.");
+    return;
+  }
+
+  const data = await api('/api/generate-teams', 'POST', { available_players: selectedPlayers });
+  if (data && data.team1 && data.team2) {
+    aiTeam1 = data.team1;
+    aiTeam2 = data.team2;
+    document.getElementById('ai-teams-preview').style.display = 'block';
+    
+    let t1Text = aiTeam1.join(', ');
+    let t2Text = aiTeam2.join(', ');
+    
+    if (data.common) {
+        t1Text += ` <span style="color:var(--accent-cyan)">(+ ${data.common} as common)</span>`;
+        t2Text += ` <span style="color:var(--accent-cyan)">(+ ${data.common} as common)</span>`;
+    }
+
+    document.getElementById('preview-team1').innerHTML = t1Text;
+    document.getElementById('preview-team2').innerHTML = t2Text;
+    document.getElementById('btn-proceed-setup').style.display = 'block';
+  }
+}
+
 async function createMatch() {
   const team1Name = document.getElementById('team1-name').value.trim() || 'Team 1';
   const team2Name = document.getElementById('team2-name').value.trim() || 'Team 2';
@@ -1363,12 +1458,18 @@ async function createMatch() {
     if (sel) overs = parseInt(sel.dataset.ov);
   }
 
-
-  const data = await api('/api/new-match', 'POST', {
+  const payload = {
     team1_name: team1Name,
     team2_name: team2Name,
     overs: overs
-  });
+  };
+
+  if (aiTeam1 && aiTeam2) {
+    payload.team1_players = aiTeam1;
+    payload.team2_players = aiTeam2;
+  }
+
+  const data = await api('/api/new-match', 'POST', payload);
 
   if (data) {
     matchState = data.match || data;
@@ -2136,7 +2237,7 @@ async function init() {
     matchState = data;
     renderState(data);
   } else {
-    showScreen('setup-screen');
+    showScreen('home-screen');
   }
 }
 
