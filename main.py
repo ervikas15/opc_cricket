@@ -897,7 +897,8 @@ async def scorer_page():
     html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "scorer.html")
     try:
         with open(html_path, "r") as f:
-            return HTMLResponse(content=f.read())
+            content = f.read()
+            return HTMLResponse(content=content, headers={"Cache-Control": "no-store, max-age=0"})
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Scorer page not found. Check templates/scorer.html</h1>", status_code=404)
 
