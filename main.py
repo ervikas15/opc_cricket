@@ -933,7 +933,7 @@ with gr.Blocks(
             color: #64748b;
             margin-bottom: 40px;
             font-size: 1.1em;
-        ">You're authenticated! Ready to score.</p>
+        ">You're authenticated! Please enter the app to choose your action.</p>
         <a href="/scorer" style="
             display: inline-block;
             padding: 18px 48px;
@@ -947,7 +947,7 @@ with gr.Blocks(
             transition: transform 0.15s, box-shadow 0.15s;
         " onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 32px rgba(16,185,129,0.4)'"
            onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 24px rgba(16,185,129,0.3)'"
-        >Start Scoring &rarr;</a>
+        >Enter App / Home Screen &rarr;</a>
         <p style="
             color: #94a3b8;
             margin-top: 32px;
