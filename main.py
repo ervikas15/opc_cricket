@@ -810,37 +810,73 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(status_code=400, detail="OPENROUTER_API_KEY environment variable is not set.")
-    
+
     csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player-details.csv")
     try:
         with open(csv_path, "r") as f:
-            lines = f.read().strip().split("\n")
-            if req and req.available_players:
-                header = lines[0]
-                filtered_lines = [header]
-                players_lower = [p.lower() for p in req.available_players]
-                for line in lines[1:]:
-                    if not line.strip(): continue
-                    player_name = line.split(",")[0].strip()
-                    if player_name.lower() in players_lower:
-                        filtered_lines.append(line)
-                player_ratings_csv = "\n".join(filtered_lines)
-            else:
-                player_ratings_csv = "\n".join(lines)
+            raw = f.read().strip().split("\n")
+
+        header = raw[0]
+        cols = [c.strip().lower() for c in header.split(",")]
+        name_col = cols[0]
+
+        # Parse each player row into a dict
+        player_rows = []
+        for line in raw[1:]:
+            if not line.strip():
+                continue
+            parts = line.split(",")
+            if len(parts) < 2:
+                continue
+            player_rows.append({cols[i]: parts[i].strip() for i in range(min(len(cols), len(parts)))})
+
+        # Filter to only selected players (if provided)
+        if req and req.available_players:
+            available_lower = [p.lower() for p in req.available_players]
+            player_rows = [r for r in player_rows if r.get(name_col, "").lower() in available_lower]
+
+        if len(player_rows) < 2:
+            raise HTTPException(status_code=400, detail="Not enough players selected.")
+
+        # Compute total rating for each player (sum of all numeric columns)
+        for row in player_rows:
+            total = 0
+            for k, v in row.items():
+                if k == name_col:
+                    continue
+                try:
+                    total += float(v)
+                except ValueError:
+                    pass
+            row["_total"] = total
+
+        # Deterministically pick the weakest player as common for odd rosters
+        common_player = None
+        pool = list(player_rows)
+        if len(pool) % 2 == 1:
+            weakest = min(pool, key=lambda r: r["_total"])
+            common_player = weakest[name_col]
+            pool = [r for r in pool if r[name_col] != common_player]
+
+        # Build the CSV to send to the LLM (only the even pool)
+        pool_csv_lines = [header]
+        for row in pool:
+            pool_csv_lines.append(",".join(row.get(c, "") for c in cols))
+        pool_csv = "\n".join(pool_csv_lines)
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not read player-details.csv: {e}")
 
     prompt = (
         "Here is a list of players with their batting, bowling, and fielding ratings.\n"
-        f"```csv\n{player_ratings_csv}\n```\n\n"
-        "Your task is to divide these players into two balanced teams (Team 1 and Team 2) "
-        "such that the total overall skill (batting, bowling, fielding) of both teams are as close as possible.\n"
-        "CRITICAL REQUIREMENTS:\n"
-        "1. Both Team 1 and Team 2 MUST have an exactly equal number of players.\n"
-        "2. If the total number of players provided is an odd number, you MUST select exactly one player to be 'common' (this player will play for both teams). "
-        "The remaining players must be divided equally between Team 1 and Team 2.\n"
-        "3. Return ONLY a valid JSON object with the keys 'team1' (list of strings), 'team2' (list of strings), and optionally 'common' (a single string if there is an odd number of players).\n"
-        "Do not include markdown blocks or any other text."
+        f"```csv\n{pool_csv}\n```\n\n"
+        "Divide these players into exactly two balanced teams (Team 1 and Team 2) "
+        "such that the total overall skill of both teams is as close as possible. "
+        "Every player must appear in exactly one team.\n"
+        "Return ONLY a valid JSON object with keys 'team1' (list of player name strings) and 'team2' (list of player name strings). "
+        "Do not include markdown, explanations, or any other text."
     )
 
     try:
@@ -852,38 +888,41 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "openai/gpt-oss-120b:free",
+                    "model": "openai/gpt-4o-mini",
                     "messages": [{"role": "user", "content": prompt}]
                 }
             )
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"].strip()
-            
-            # Clean up potential markdown wrapper
+
+            # Strip markdown wrappers if present
             if content.startswith("```json"):
                 content = content[7:]
             elif content.startswith("```"):
                 content = content[3:]
             if content.endswith("```"):
                 content = content[:-3]
-            
+
             teams = json.loads(content.strip())
             if "team1" not in teams or "team2" not in teams:
                 raise ValueError("JSON response missing team1 or team2 keys.")
-            
-            common_player = teams.get("common")
+
+            team1 = teams["team1"]
+            team2 = teams["team2"]
+
+            # Append the common (weakest) player to both teams
             if common_player:
-                teams["team1"].append(common_player)
-                teams["team2"].append(common_player)
-                
+                team1.append(common_player)
+                team2.append(common_player)
+
             return {
-                "status": "ok", 
-                "team1": teams["team1"], 
-                "team2": teams["team2"],
+                "status": "ok",
+                "team1": team1,
+                "team2": team2,
                 "common": common_player
             }
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM generation failed: {str(e)}")
 
