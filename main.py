@@ -956,13 +956,11 @@ with gr.Blocks(
     </div>
     """)
 
-# Mount Gradio at root with auth
+# Mount Gradio at root
 app = gr.mount_gradio_app(
     app,
     demo,
-    path="/",
-    auth=[("opc", "opc"), ("admin", "admin")],
-    auth_message="Login to Cricket Scorer"
+    path="/"
 )
 
 
