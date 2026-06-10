@@ -1958,9 +1958,11 @@ async function startInnings2() {
 
 // ===== NEW MATCH =====
 function newMatch() {
-  matchState = null;
-  showScreen('setup-screen');
-  document.title = 'OPC Cricket Scorer';
+  api('/api/reset', 'POST').then(() => {
+    matchState = null;
+    showScreen('home-screen');
+    document.title = 'OPC Cricket Scorer';
+  });
 }
 
 // ===== SCORECARD =====
@@ -2048,7 +2050,7 @@ function renderScorecardContent(idx) {
 // ===== MASTER RENDER =====
 function renderState(match) {
   if (!match) {
-    showScreen('setup-screen');
+    showScreen('home-screen');
     return;
   }
   matchState = match;
@@ -2070,7 +2072,7 @@ function renderState(match) {
       showScreen('complete-screen');
       break;
     default:
-      showScreen('setup-screen');
+      showScreen('home-screen');
   }
 }
 
