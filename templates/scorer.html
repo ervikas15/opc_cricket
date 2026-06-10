@@ -188,6 +188,406 @@ select {
 
 .anim-fade { animation: fadeIn 0.3s ease; }
 
+/* ===== HOME SCREEN ===== */
+#home-screen {
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(160deg, #f0fdf4 0%, #eff6ff 50%, #f5f3ff 100%);
+  min-height: 100vh;
+}
+.home-hero {
+  text-align: center;
+  padding: 32px 24px 40px;
+  width: 100%;
+}
+.home-hero-icon {
+  font-size: 5rem;
+  display: block;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.12));
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.home-hero h1 {
+  font-size: 2rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #059669, #0891b2, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+  letter-spacing: -0.5px;
+}
+.home-hero p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 40px;
+}
+.home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 0 8px;
+}
+.home-action-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 20px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s, box-shadow 0.18s;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+}
+.home-action-card:active { transform: scale(0.97); }
+.home-action-card-teams {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: white;
+}
+.home-action-card-score {
+  background: linear-gradient(135deg, #059669 0%, #0891b2 100%);
+  color: white;
+}
+.home-action-icon {
+  font-size: 2.2rem;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.home-action-text h2 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 3px;
+}
+.home-action-text p {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  line-height: 1.4;
+}
+.home-action-arrow {
+  margin-left: auto;
+  font-size: 1.4rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* ===== TEAM GEN SCREEN ===== */
+#team-gen-screen {
+  gap: 0;
+}
+.tg-header {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  padding: 24px 20px 20px;
+  padding-top: calc(24px + var(--safe-top));
+  color: white;
+  border-radius: 0 0 24px 24px;
+  margin: -12px -12px 16px -12px;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(124,58,237,0.3);
+}
+.tg-header-back {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.tg-header-back:active { background: rgba(255,255,255,0.3); }
+.tg-header h1 {
+  font-size: 1.5rem;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+.tg-header p {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.tg-player-count-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.tg-count-badge {
+  font-size: 1.3rem;
+  font-weight: 900;
+  background: rgba(255,255,255,0.25);
+  border-radius: 8px;
+  padding: 2px 12px;
+  min-width: 40px;
+  text-align: center;
+}
+.tg-count-label {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+.tg-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 4px 12px;
+}
+.tg-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 8px 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tg-quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.tg-quick-btn {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1.5px solid rgba(124,58,237,0.25);
+  background: rgba(124,58,237,0.06);
+  color: var(--accent-purple);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.tg-quick-btn:active { transform: scale(0.95); background: rgba(124,58,237,0.12); }
+.player-chips-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.player-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.player-chip:active { transform: scale(0.96); }
+.player-chip.selected {
+  border-color: #7c3aed;
+  background: rgba(124,58,237,0.06);
+  box-shadow: 0 2px 12px rgba(124,58,237,0.15);
+}
+.player-chip input[type=checkbox] {
+  display: none;
+}
+.player-chip-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--btn-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.player-chip.selected .player-chip-avatar {
+  background: #7c3aed;
+  color: white;
+}
+.player-chip-name {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-chip-check {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.player-chip.selected .player-chip-check {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: white;
+}
+.player-chip-check::after {
+  content: '';
+  display: none;
+  width: 5px;
+  height: 8px;
+  border: 2px solid white;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+.player-chip.selected .player-chip-check::after {
+  display: block;
+}
+.tg-generate-btn {
+  width: 100%;
+  padding: 18px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: inherit;
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: white;
+  box-shadow: 0 4px 20px rgba(124,58,237,0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.tg-generate-btn:active { transform: scale(0.97); }
+.tg-generate-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* Team result cards */
+.tg-result-section {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+.tg-result-section.show { display: block; }
+.tg-result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent-purple);
+  margin-bottom: 12px;
+}
+.tg-team-card {
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.tg-team-card-header {
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tg-team-card-header.t1 { background: linear-gradient(90deg, #059669, #0891b2); }
+.tg-team-card-header.t2 { background: linear-gradient(90deg, #7c3aed, #4f46e5); }
+.tg-team-card-body {
+  background: var(--bg-card);
+  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tg-player-tag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.tg-player-tag.common {
+  background: rgba(8,145,178,0.08);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+.tg-common-notice {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--accent-cyan);
+  background: rgba(8,145,178,0.08);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(8,145,178,0.2);
+}
+.tg-proceed-btn {
+  width: 100%;
+  padding: 18px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: inherit;
+  background: linear-gradient(135deg, #059669 0%, #0891b2 100%);
+  color: white;
+  box-shadow: 0 4px 20px rgba(5,150,105,0.3);
+  transition: transform 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.tg-proceed-btn:active { transform: scale(0.97); }
+
 /* ===== SETUP SCREEN ===== */
 #setup-screen {
   justify-content: center;
@@ -988,37 +1388,63 @@ select {
 
   <!-- ===== HOME SCREEN ===== -->
   <div class="screen" id="home-screen">
-    <div style="text-align:center; padding: 40px 20px;">
-      <div style="font-size: 4em; margin-bottom: 16px;">🏏</div>
-      <h1 style="font-size: 1.8em; margin-bottom: 8px; font-weight: 800;">OPC Cricket Scorer</h1>
-      <p style="color: var(--text-muted); margin-bottom: 40px;">What would you like to do?</p>
-      
-      <button class="btn btn-block" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; margin-bottom: 16px; padding: 18px; font-size: 1.1em;" onclick="showScreen('team-gen-screen'); loadPlayersForGen();">✨ Create Balanced Teams</button>
-      
-      <button class="btn btn-primary btn-block" style="padding: 18px; font-size: 1.1em;" onclick="showScreen('setup-screen')">▶️ Start Scoring</button>
+    <div class="home-hero">
+      <span class="home-hero-icon">🏏</span>
+      <h1>OPC Cricket</h1>
+      <p>What would you like to do today?</p>
+      <div class="home-actions">
+        <button class="home-action-card home-action-card-teams" onclick="showScreen('team-gen-screen'); loadPlayersForGen();">
+          <div class="home-action-icon">✨</div>
+          <div class="home-action-text">
+            <h2>Create Teams</h2>
+            <p>Pick players &amp; let AI build balanced teams</p>
+          </div>
+          <span class="home-action-arrow">›</span>
+        </button>
+        <button class="home-action-card home-action-card-score" onclick="showScreen('setup-screen')">
+          <div class="home-action-icon">🏏</div>
+          <div class="home-action-text">
+            <h2>Start Scoring</h2>
+            <p>Set up a match and start recording balls</p>
+          </div>
+          <span class="home-action-arrow">›</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- ===== TEAM GEN SCREEN ===== -->
   <div class="screen" id="team-gen-screen">
-    <div class="setup-header">
-      <h1>✨ AI Team Generator</h1>
-      <p>Select players playing today</p>
+    <div class="tg-header">
+      <button class="tg-header-back" onclick="showScreen('home-screen')">‹</button>
+      <h1>✨ Build Teams</h1>
+      <p>Tap players who are playing today</p>
+      <div class="tg-player-count-bar">
+        <span class="tg-count-label">Players selected</span>
+        <span class="tg-count-badge" id="tg-selected-count">0</span>
+      </div>
     </div>
-    <div class="card anim-fade">
-      <div id="player-checkboxes" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom: 16px;">
-        <!-- Checkboxes injected here -->
+    <div class="tg-body" id="tg-body">
+      <div class="tg-quick-actions">
+        <button class="tg-quick-btn" onclick="tgSelectAll()">✅ Select All</button>
+        <button class="tg-quick-btn" onclick="tgSelectNone()">☐ Clear All</button>
       </div>
-      <button type="button" class="btn btn-ghost btn-block" style="margin-bottom:12px; color: var(--accent-purple); border: 1px dashed var(--accent-purple);" onclick="generateTeams()">Generate Teams</button>
-      
-      <div id="ai-teams-preview" style="display:none; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; padding: 12px; background: rgba(124,58,237,0.05); border-radius: var(--radius-sm); border: 1px solid rgba(124,58,237,0.2);">
-        <strong style="color:var(--accent-purple); display:block; margin-bottom:8px; font-size: 1rem;">Generated Teams:</strong>
-        <b>Team 1:</b> <span id="preview-team1"></span><br><br>
-        <b>Team 2:</b> <span id="preview-team2"></span>
+      <div class="tg-section-title">Players</div>
+      <div class="player-chips-grid" id="player-checkboxes"></div>
+      <button class="tg-generate-btn" id="tg-generate-btn" onclick="generateTeams()">⚡ Generate Balanced Teams</button>
+      <div class="tg-result-section" id="ai-teams-preview">
+        <div class="tg-result-header">🎯 AI Generated Teams</div>
+        <div id="tg-common-notice" class="tg-common-notice" style="display:none;"></div>
+        <div class="tg-team-card">
+          <div class="tg-team-card-header t1">🟢 Team 1</div>
+          <div class="tg-team-card-body" id="preview-team1"></div>
+        </div>
+        <div class="tg-team-card">
+          <div class="tg-team-card-header t2">🟣 Team 2</div>
+          <div class="tg-team-card-body" id="preview-team2"></div>
+        </div>
+        <button class="tg-proceed-btn" id="btn-proceed-setup" onclick="showScreen('setup-screen')">▶️ Proceed to Match Setup</button>
       </div>
-      
-      <button class="btn btn-primary btn-block" style="margin-top:12px; display:none;" id="btn-proceed-setup" onclick="showScreen('setup-screen')">Proceed to Match Setup</button>
-      <button class="btn btn-ghost btn-block" style="margin-top:8px;" onclick="showScreen('home-screen')">Back to Home</button>
     </div>
   </div>
 
@@ -1388,32 +1814,69 @@ document.getElementById('overs-custom').addEventListener('input', function() {
 
 
 
+function tgUpdateCount() {
+  const count = document.querySelectorAll('.player-gen-cb:checked').length;
+  document.getElementById('tg-selected-count').textContent = count;
+}
+
+function tgSelectAll() {
+  document.querySelectorAll('.player-gen-cb').forEach(cb => {
+    cb.checked = true;
+    cb.closest('.player-chip').classList.add('selected');
+  });
+  tgUpdateCount();
+}
+
+function tgSelectNone() {
+  document.querySelectorAll('.player-gen-cb').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.player-chip').classList.remove('selected');
+  });
+  tgUpdateCount();
+}
+
 function loadPlayersForGen() {
   const container = document.getElementById('player-checkboxes');
   container.innerHTML = '';
+  document.getElementById('ai-teams-preview').classList.remove('show');
+  document.getElementById('tg-selected-count').textContent = '0';
+  // scroll to top
+  const body = document.getElementById('tg-body');
+  if (body) body.scrollTop = 0;
+
   playerRoster.forEach(p => {
-    const lbl = document.createElement('label');
-    lbl.style.display = 'flex';
-    lbl.style.alignItems = 'center';
-    lbl.style.gap = '6px';
-    lbl.style.fontSize = '0.85rem';
-    lbl.style.background = 'var(--btn-default)';
-    lbl.style.padding = '6px 10px';
-    lbl.style.borderRadius = 'var(--radius-sm)';
-    lbl.style.cursor = 'pointer';
-    
+    const chip = document.createElement('label');
+    chip.className = 'player-chip';
+
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.value = p;
-    cb.checked = false; // Default unchecked
+    cb.checked = false;
     cb.className = 'player-gen-cb';
-    
-    lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(p));
-    container.appendChild(lbl);
+    cb.addEventListener('change', () => {
+      chip.classList.toggle('selected', cb.checked);
+      tgUpdateCount();
+    });
+
+    const initials = p.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+    const avatar = document.createElement('div');
+    avatar.className = 'player-chip-avatar';
+    avatar.textContent = initials;
+
+    const name = document.createElement('div');
+    name.className = 'player-chip-name';
+    name.textContent = p.split(' ')[0]; // first name for compact display
+    name.title = p;
+
+    const checkIcon = document.createElement('div');
+    checkIcon.className = 'player-chip-check';
+
+    chip.appendChild(cb);
+    chip.appendChild(avatar);
+    chip.appendChild(name);
+    chip.appendChild(checkIcon);
+    container.appendChild(chip);
   });
-  document.getElementById('ai-teams-preview').style.display = 'none';
-  document.getElementById('btn-proceed-setup').style.display = 'none';
 }
 
 async function generateTeams() {
@@ -1421,7 +1884,7 @@ async function generateTeams() {
   const selectedPlayers = Array.from(checkboxes).map(cb => cb.value);
   
   if (selectedPlayers.length < 2) {
-    alert("Please select at least 2 players.");
+    alert('Please select at least 2 players.');
     return;
   }
 
@@ -1429,19 +1892,41 @@ async function generateTeams() {
   if (data && data.team1 && data.team2) {
     aiTeam1 = data.team1;
     aiTeam2 = data.team2;
-    document.getElementById('ai-teams-preview').style.display = 'block';
-    
-    let t1Text = aiTeam1.join(', ');
-    let t2Text = aiTeam2.join(', ');
-    
+
+    // Render Team 1
+    const t1el = document.getElementById('preview-team1');
+    t1el.innerHTML = '';
+    aiTeam1.forEach(name => {
+      const tag = document.createElement('span');
+      tag.className = 'tg-player-tag' + (name === data.common ? ' common' : '');
+      tag.textContent = name === data.common ? '⭐ ' + name : name;
+      t1el.appendChild(tag);
+    });
+
+    // Render Team 2
+    const t2el = document.getElementById('preview-team2');
+    t2el.innerHTML = '';
+    aiTeam2.forEach(name => {
+      const tag = document.createElement('span');
+      tag.className = 'tg-player-tag' + (name === data.common ? ' common' : '');
+      tag.textContent = name === data.common ? '⭐ ' + name : name;
+      t2el.appendChild(tag);
+    });
+
+    // Common player notice
+    const notice = document.getElementById('tg-common-notice');
     if (data.common) {
-        t1Text += ` <span style="color:var(--accent-cyan)">(+ ${data.common} as common)</span>`;
-        t2Text += ` <span style="color:var(--accent-cyan)">(+ ${data.common} as common)</span>`;
+      notice.style.display = 'block';
+      notice.textContent = `⭐ ${data.common} plays for both teams (odd number of players)`;
+    } else {
+      notice.style.display = 'none';
     }
 
-    document.getElementById('preview-team1').innerHTML = t1Text;
-    document.getElementById('preview-team2').innerHTML = t2Text;
-    document.getElementById('btn-proceed-setup').style.display = 'block';
+    document.getElementById('ai-teams-preview').classList.add('show');
+    // Scroll down to show results
+    setTimeout(() => {
+      document.getElementById('ai-teams-preview').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
   }
 }
 
