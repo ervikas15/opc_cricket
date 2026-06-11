@@ -875,17 +875,27 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
     prompt = (
         "Here is a list of cricket players with their batting, bowling, fielding ratings, and remarks about each player.\n"
         f"```csv\n{pool_csv}\n```\n\n"
-        "Your task is to divide these players into exactly two balanced teams (Team 1 and Team 2).\n"
-        "IMPORTANT: You must carefully read and factor in each player's REMARKS when balancing the teams. "
+        "Your task is to divide these players into exactly two balanced teams AND give each team a creative, sporty name.\n"
+        "STEP 1 - Balance the teams:\n"
+        "Carefully read each player's REMARKS alongside their numeric ratings. "
         "The remarks contain crucial context such as:\n"
         "- Whether a player is consistent or inconsistent\n"
         "- Whether a player can field at the boundary or not\n"
         "- Whether a player needs a runner (limited mobility)\n"
         "- Whether a player is young/learning vs experienced/mature\n"
-        "Use both the numeric ratings AND the remarks together to ensure each team is truly balanced "
+        "Use both the numeric ratings AND the remarks to ensure each team is truly balanced "
         "in terms of batting strength, bowling strength, fielding capability, consistency, and age/experience mix.\n"
         "Every player must appear in exactly one team.\n"
-        "Return ONLY a valid JSON object with keys 'team1' (list of player name strings) and 'team2' (list of player name strings). "
+        "STEP 2 - Name the teams:\n"
+        "Invent a fun, creative, sporty team name for each team. "
+        "Draw inspiration from animals, cities, natural phenomena, mythological figures, sports slang, or anything fierce and memorable. "
+        "Examples: 'Mumbai Mavericks', 'Thunder Cobras', 'Roaring Rhinos', 'Blazing Falcons'. "
+        "Make the names distinct and exciting — no generic 'Team A' or 'Team 1' style names.\n"
+        "Return ONLY a valid JSON object with exactly these keys:\n"
+        "  'team1': list of player name strings\n"
+        "  'team2': list of player name strings\n"
+        "  'team1_name': creative team name string for team 1\n"
+        "  'team2_name': creative team name string for team 2\n"
         "Do not include markdown, explanations, or any other text."
     )
 
@@ -920,6 +930,8 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
 
             team1 = teams["team1"]
             team2 = teams["team2"]
+            team1_name = teams.get("team1_name", "Team 1")
+            team2_name = teams.get("team2_name", "Team 2")
 
             # Append the common (weakest) player to both teams
             if common_player:
@@ -930,6 +942,8 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
                 "status": "ok",
                 "team1": team1,
                 "team2": team2,
+                "team1_name": team1_name,
+                "team2_name": team2_name,
                 "common": common_player
             }
 

@@ -1436,11 +1436,11 @@ select {
         <div class="tg-result-header">🎯 AI Generated Teams</div>
         <div id="tg-common-notice" class="tg-common-notice" style="display:none;"></div>
         <div class="tg-team-card">
-          <div class="tg-team-card-header t1">🟢 Team 1</div>
+          <div class="tg-team-card-header t1" id="tg-team1-header">🟢 Team 1</div>
           <div class="tg-team-card-body" id="preview-team1"></div>
         </div>
         <div class="tg-team-card">
-          <div class="tg-team-card-header t2">🟣 Team 2</div>
+          <div class="tg-team-card-header t2" id="tg-team2-header">🟣 Team 2</div>
           <div class="tg-team-card-body" id="preview-team2"></div>
         </div>
         <button class="tg-proceed-btn" id="btn-proceed-setup" onclick="showScreen('setup-screen')">▶️ Proceed to Match Setup</button>
@@ -1892,8 +1892,18 @@ async function generateTeams() {
   if (data && data.team1 && data.team2) {
     aiTeam1 = data.team1;
     aiTeam2 = data.team2;
+    const t1Name = data.team1_name || 'Team 1';
+    const t2Name = data.team2_name || 'Team 2';
 
-    // Render Team 1
+    // Update team card headers with AI-generated names
+    document.getElementById('tg-team1-header').textContent = '🟢 ' + t1Name;
+    document.getElementById('tg-team2-header').textContent = '🟣 ' + t2Name;
+
+    // Pre-fill match setup inputs with these names
+    document.getElementById('team1-name').value = t1Name;
+    document.getElementById('team2-name').value = t2Name;
+
+    // Render Team 1 players
     const t1el = document.getElementById('preview-team1');
     t1el.innerHTML = '';
     aiTeam1.forEach(name => {
@@ -1903,7 +1913,7 @@ async function generateTeams() {
       t1el.appendChild(tag);
     });
 
-    // Render Team 2
+    // Render Team 2 players
     const t2el = document.getElementById('preview-team2');
     t2el.innerHTML = '';
     aiTeam2.forEach(name => {
