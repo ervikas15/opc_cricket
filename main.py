@@ -858,10 +858,13 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
             common_player = weakest[name_col]
             pool = [r for r in pool if r[name_col] != common_player]
 
-        # Build the CSV to send to the LLM (only the even pool)
+        # Build the CSV to send to the LLM (only the even pool, exclude internal _total key)
         pool_csv_lines = [header]
         for row in pool:
-            pool_csv_lines.append(",".join(row.get(c, "") for c in cols))
+            # Quote fields that contain commas
+            def csv_field(v):
+                return f'"{v}"' if "," in str(v) else str(v)
+            pool_csv_lines.append(",".join(csv_field(row.get(c, "")) for c in cols))
         pool_csv = "\n".join(pool_csv_lines)
 
     except HTTPException:
@@ -870,10 +873,17 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
         raise HTTPException(status_code=500, detail=f"Could not read player-details.csv: {e}")
 
     prompt = (
-        "Here is a list of players with their batting, bowling, and fielding ratings.\n"
+        "Here is a list of cricket players with their batting, bowling, fielding ratings, and remarks about each player.\n"
         f"```csv\n{pool_csv}\n```\n\n"
-        "Divide these players into exactly two balanced teams (Team 1 and Team 2) "
-        "such that the total overall skill of both teams is as close as possible. "
+        "Your task is to divide these players into exactly two balanced teams (Team 1 and Team 2).\n"
+        "IMPORTANT: You must carefully read and factor in each player's REMARKS when balancing the teams. "
+        "The remarks contain crucial context such as:\n"
+        "- Whether a player is consistent or inconsistent\n"
+        "- Whether a player can field at the boundary or not\n"
+        "- Whether a player needs a runner (limited mobility)\n"
+        "- Whether a player is young/learning vs experienced/mature\n"
+        "Use both the numeric ratings AND the remarks together to ensure each team is truly balanced "
+        "in terms of batting strength, bowling strength, fielding capability, consistency, and age/experience mix.\n"
         "Every player must appear in exactly one team.\n"
         "Return ONLY a valid JSON object with keys 'team1' (list of player name strings) and 'team2' (list of player name strings). "
         "Do not include markdown, explanations, or any other text."
