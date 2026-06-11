@@ -21,7 +21,7 @@ app = FastAPI(title="Cricket Scorer", version="1.0.0")
 PLAYER_ROSTER = [
     "Vikas", "Arpit", "Naren", "Trijal", "Hrushi", "Shiprak", "Pranay",
     "Vaibhav", "PC Sinha", "Sandeep", "Amit", "Anurag", "Hari", "Umesh",
-    "Puneet", "Abhishek", "Shiva", "Tarun", "Vasant", "Soham", "Raj"
+    "Puneet", "Abhishek", "Shiva", "Tarun", "Vasant", "Soham", "Ravi", "Raj"
 ]
 
 # ============================================================
