@@ -1844,7 +1844,7 @@ function loadPlayersForGen() {
   const body = document.getElementById('tg-body');
   if (body) body.scrollTop = 0;
 
-  playerRoster.forEach(p => {
+  [...playerRoster].sort((a, b) => a.localeCompare(b)).forEach(p => {
     const chip = document.createElement('label');
     chip.className = 'player-chip';
 
