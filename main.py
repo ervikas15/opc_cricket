@@ -886,6 +886,7 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
         "Use both the numeric ratings AND the remarks to ensure each team is truly balanced "
         "in terms of batting strength, bowling strength, fielding capability, consistency, and age/experience mix.\n"
         "Every player must appear in exactly one team.\n"
+        "Make sure each team have atleast one player who can field at boundary.\n"
         "STEP 2 - Name the teams:\n"
         "Invent a fun, creative, sporty team name for each team. "
         "Draw inspiration from animals, cities, natural phenomena, mythological figures, sports slang, or anything fierce and memorable. "
