@@ -861,75 +861,130 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
         if len(player_rows) < 2:
             raise HTTPException(status_code=400, detail="Not enough players selected.")
 
-        # Compute total rating for each player (sum of all numeric columns)
+        # ── Step 1: Compute base numeric rating (batting + bowling + fielding) ──
         for row in player_rows:
-            total = 0
+            base = 0
             for k, v in row.items():
-                if k == name_col:
+                if k in (name_col, remarks_col):
                     continue
                 try:
-                    total += float(v)
+                    base += float(v)
                 except (ValueError, TypeError):
                     pass
-            row["_total"] = total
+            row["_base"] = base
 
-        # Deterministically pick the weakest player as common for odd rosters
+        # ── Step 2: Derive effective score using remarks ──
+        def effective_score(row):
+            score = row["_base"]
+            r = row.get(remarks_col, "").lower()
+            # Penalties for real-world limitations
+            if "not able to field at boundary" in r or "cannot field at back" in r:
+                score -= 1.5
+            if "need a runner" in r or "needs a runner" in r:
+                score -= 2.0
+            if "old uncle" in r:
+                score -= 1.0
+            if "not consistent" in r or "hitter but not consistent" in r:
+                score -= 1.5
+            if "young kid at learning stage" in r:
+                score -= 0.5
+            # Bonuses for strengths called out in remarks
+            if "best, most consistent" in r or "most consistent" in r:
+                score += 1.5
+            if "best fielder at boundary" in r:
+                score += 1.0
+            if "good fielder at boundary" in r or "able to field at boundary" in r:
+                score += 0.5
+            if "mature player" in r or "stable mindset" in r:
+                score += 0.5
+            return score
+
+        for row in player_rows:
+            row["_eff"] = effective_score(row)
+
+        # Helper: does remarks indicate can field at boundary?
+        def can_field_boundary(row):
+            r = row.get(remarks_col, "").lower()
+            return (
+                "good fielder at boundary" in r
+                or "best fielder at boundary" in r
+                or "able to field at boundary" in r
+            ) and "not able to field at boundary" not in r
+
+        # ── Step 3: Pick common player (weakest effective score) if odd count ──
         common_player = None
         pool = list(player_rows)
         if len(pool) % 2 == 1:
-            weakest = min(pool, key=lambda r: r["_total"])
+            weakest = min(pool, key=lambda r: r["_eff"])
             common_player = weakest[name_col]
             pool = [r for r in pool if r[name_col] != common_player]
 
-        # Build a clean CSV to send to the LLM using the csv module (handles commas in fields)
-        display_cols = [c for c in cols if c != "_total"]
-        import io as _io
-        csv_buf = _io.StringIO()
-        writer = _csv.writer(csv_buf)
-        writer.writerow(display_cols)
-        for row in pool:
-            writer.writerow([row.get(c, "") for c in display_cols])
-        pool_csv = csv_buf.getvalue().strip()
+        # ── Step 4: Greedy number-partition — optimal for balancing two teams ──
+        # Sort by effective score descending so biggest players assigned first
+        pool_sorted = sorted(pool, key=lambda r: r["_eff"], reverse=True)
+        team1_rows, team2_rows = [], []
+        t1_total, t2_total = 0.0, 0.0
+        for row in pool_sorted:
+            if t1_total <= t2_total:
+                team1_rows.append(row)
+                t1_total += row["_eff"]
+            else:
+                team2_rows.append(row)
+                t2_total += row["_eff"]
 
-        # Names the LLM must distribute
-        pool_player_names = [r[name_col] for r in pool]
+        # ── Step 5: Ensure each team has ≥1 boundary fielder ──
+        t1_has_fielder = any(can_field_boundary(r) for r in team1_rows)
+        t2_has_fielder = any(can_field_boundary(r) for r in team2_rows)
+
+        if t1_has_fielder and not t2_has_fielder:
+            # Move least-costly boundary fielder from t1 → t2 and swap out a non-fielder
+            t1_fielders = [r for r in team1_rows if can_field_boundary(r)]
+            swap_out = min(t1_fielders, key=lambda r: r["_eff"])
+            t2_non = [r for r in team2_rows if not can_field_boundary(r)]
+            if t2_non:
+                swap_in = min(t2_non, key=lambda r: r["_eff"])
+                team1_rows.remove(swap_out)
+                team2_rows.remove(swap_in)
+                team1_rows.append(swap_in)
+                team2_rows.append(swap_out)
+
+        elif t2_has_fielder and not t1_has_fielder:
+            t2_fielders = [r for r in team2_rows if can_field_boundary(r)]
+            swap_out = min(t2_fielders, key=lambda r: r["_eff"])
+            t1_non = [r for r in team1_rows if not can_field_boundary(r)]
+            if t1_non:
+                swap_in = min(t1_non, key=lambda r: r["_eff"])
+                team2_rows.remove(swap_out)
+                team1_rows.remove(swap_in)
+                team2_rows.append(swap_in)
+                team1_rows.append(swap_out)
+
+        team1 = [r[name_col] for r in team1_rows]
+        team2 = [r[name_col] for r in team2_rows]
+        pool_player_names = team1 + team2  # for validation reference
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Could not read player-details.csv: {e}")
+        raise HTTPException(status_code=500, detail=f"Could not process player data: {e}")
 
-    pool_names_str = ", ".join(pool_player_names)
-    pool_count = len(pool_player_names)
-    half = pool_count // 2
-
-    prompt = (
-        f"Here are {pool_count} cricket players with their batting, bowling, fielding ratings, and remarks.\n"
-        f"```csv\n{pool_csv}\n```\n\n"
-        f"ALL {pool_count} players listed here must be assigned: {pool_names_str}\n\n"
-        "Your task: divide ALL of these players into exactly two balanced teams AND give each team a creative name.\n"
-        "CRITICAL RULES:\n"
-        f"1. team1 must have EXACTLY {half} players.\n"
-        f"2. team2 must have EXACTLY {half} players.\n"
-        "3. Every single player listed above must appear in exactly ONE team. No player may be omitted or duplicated.\n"
-        "4. Use each player's REMARKS alongside numeric ratings to balance the teams — pay attention to: "
-        "consistency, boundary fielding ability, mobility (needs a runner), age/experience mix. "
-        "Each team should have at least one reliable boundary fielder.\n"
-        "STEP 2 - Name the teams:\n"
-        "Invent a fun, creative, sporty name for each team. "
+    # ── Step 6: Ask LLM only for creative team names ──
+    team1_str = ", ".join(team1)
+    team2_str = ", ".join(team2)
+    name_prompt = (
+        "I have two cricket teams. Generate a fun, creative, sporty name for each.\n"
+        f"Team 1 players: {team1_str}\n"
+        f"Team 2 players: {team2_str}\n"
         "Draw inspiration from animals, cities, natural phenomena, mythological figures, or sports slang. "
         "Examples: 'Mumbai Mavericks', 'Thunder Cobras', 'Roaring Rhinos', 'Blazing Falcons'. "
         "No generic 'Team A' or 'Team 1' style names.\n"
-        "Return ONLY a valid JSON object with exactly these keys:\n"
-        "  'team1': list of player name strings (EXACTLY {half} names from the list above)\n"
-        "  'team2': list of player name strings (EXACTLY {half} names from the list above)\n"
-        "  'team1_name': creative team name string\n"
-        "  'team2_name': creative team name string\n"
-        "Do not include markdown, explanations, or any other text."
+        "Return ONLY a valid JSON object with exactly two keys: 'team1_name' and 'team2_name'. "
+        "Do not include markdown or any other text."
     )
 
+    team1_name, team2_name = "Team 1", "Team 2"
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -938,60 +993,37 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
                 },
                 json={
                     "model": "openai/gpt-4o-mini",
-                    "messages": [{"role": "user", "content": prompt}]
+                    "messages": [{"role": "user", "content": name_prompt}]
                 }
             )
             response.raise_for_status()
-            data = response.json()
-            content = data["choices"][0]["message"]["content"].strip()
+            raw = response.json()["choices"][0]["message"]["content"].strip()
+            if raw.startswith("```json"):
+                raw = raw[7:]
+            elif raw.startswith("```"):
+                raw = raw[3:]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            names = json.loads(raw.strip())
+            team1_name = names.get("team1_name", "Team 1")
+            team2_name = names.get("team2_name", "Team 2")
+    except Exception:
+        pass  # fallback to default names if LLM fails
 
-            # Strip markdown wrappers if present
-            if content.startswith("```json"):
-                content = content[7:]
-            elif content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
+    # Append common player to both teams
+    if common_player:
+        team1.append(common_player)
+        team2.append(common_player)
 
-            teams = json.loads(content.strip())
-            if "team1" not in teams or "team2" not in teams:
-                raise ValueError("JSON response missing team1 or team2 keys.")
+    return {
+        "status": "ok",
+        "team1": team1,
+        "team2": team2,
+        "team1_name": team1_name,
+        "team2_name": team2_name,
+        "common": common_player
+    }
 
-            team1 = teams["team1"]
-            team2 = teams["team2"]
-            team1_name = teams.get("team1_name", "Team 1")
-            team2_name = teams.get("team2_name", "Team 2")
-
-            # Validate: remove any hallucinated names not in the pool
-            valid_names = set(pool_player_names)
-            team1 = [p for p in team1 if p in valid_names]
-            team2 = [p for p in team2 if p in valid_names]
-
-            # Recover any players the LLM missed
-            assigned = set(team1) | set(team2)
-            missing = [n for n in pool_player_names if n not in assigned]
-            for p in missing:
-                if len(team1) <= len(team2):
-                    team1.append(p)
-                else:
-                    team2.append(p)
-
-            # Append the common (weakest) player to both teams
-            if common_player:
-                team1.append(common_player)
-                team2.append(common_player)
-
-            return {
-                "status": "ok",
-                "team1": team1,
-                "team2": team2,
-                "team1_name": team1_name,
-                "team2_name": team2_name,
-                "common": common_player
-            }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM generation failed: {str(e)}")
 
 
 # ============================================================
