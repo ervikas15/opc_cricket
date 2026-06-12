@@ -20,7 +20,7 @@ app = FastAPI(title="Cricket Scorer", version="1.0.0")
 # Predefined player roster
 PLAYER_ROSTER = [
     "Vikas", "Arpit", "Naren", "Trijal", "Hrushi", "Shiprak", "Pranay",
-    "Vaibhav", "PC Sinha", "Sandeep", "Amit", "Anurag", "Hari", "Umesh",
+    "Vaibhav", "PC_Sinha", "Sandeep", "Amit", "Anurag", "Hari", "Umesh",
     "Puneet", "Abhishek", "Shiva", "Tarun", "Vasant", "Soham", "Ravi", "Raj"
 ]
 
@@ -849,10 +849,12 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
 
         cols = headers
 
-        # Filter to only selected players (if provided)
+        # Filter to only selected players — normalize underscores/spaces for robust matching
         if req and req.available_players:
-            available_lower = [p.strip().lower() for p in req.available_players]
-            player_rows = [r for r in all_rows if r.get(name_col, "").lower() in available_lower]
+            def norm(s):
+                return s.strip().lower().replace("_", " ").replace("-", " ")
+            available_norm = [norm(p) for p in req.available_players]
+            player_rows = [r for r in all_rows if norm(r.get(name_col, "")) in available_norm]
         else:
             player_rows = list(all_rows)
 
