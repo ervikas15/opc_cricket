@@ -816,15 +816,38 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
         import csv as _csv
 
         with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
-            reader = _csv.DictReader(f)
-            reader.fieldnames = [h.strip().lower() for h in reader.fieldnames]
-            all_rows = [{k: (v.strip() if v else "") for k, v in row.items()} for row in reader]
+            reader = _csv.reader(f)
+            headers = [h.strip().lower() for h in next(reader)]
 
-        if not all_rows:
+        if not headers:
             raise HTTPException(status_code=500, detail="player-details.csv is empty.")
 
-        cols = list(all_rows[0].keys())
-        name_col = cols[0]
+        name_col = headers[0]
+        remarks_col = headers[-1]  # last column = remarks
+
+        # Re-open to parse rows — remarks may contain commas so join everything after col N-1
+        all_rows = []
+        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+            reader = _csv.reader(f)
+            next(reader)  # skip header
+            for parts in reader:
+                if not parts or not parts[0].strip():
+                    continue
+                row = {}
+                # Assign first len(headers)-1 columns normally
+                for i in range(min(len(headers) - 1, len(parts))):
+                    row[headers[i]] = parts[i].strip()
+                # Remarks = everything from index len(headers)-1 onwards joined back
+                if len(parts) >= len(headers):
+                    row[remarks_col] = ", ".join(p.strip() for p in parts[len(headers) - 1:])
+                else:
+                    row[remarks_col] = ""
+                all_rows.append(row)
+
+        if not all_rows:
+            raise HTTPException(status_code=500, detail="player-details.csv has no player data.")
+
+        cols = headers
 
         # Filter to only selected players (if provided)
         if req and req.available_players:
