@@ -813,27 +813,25 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
 
     csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player-details.csv")
     try:
-        with open(csv_path, "r") as f:
-            raw = f.read().strip().split("\n")
+        import csv as _csv
 
-        header = raw[0]
-        cols = [c.strip().lower() for c in header.split(",")]
+        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+            reader = _csv.DictReader(f)
+            reader.fieldnames = [h.strip().lower() for h in reader.fieldnames]
+            all_rows = [{k: (v.strip() if v else "") for k, v in row.items()} for row in reader]
+
+        if not all_rows:
+            raise HTTPException(status_code=500, detail="player-details.csv is empty.")
+
+        cols = list(all_rows[0].keys())
         name_col = cols[0]
-
-        # Parse each player row into a dict
-        player_rows = []
-        for line in raw[1:]:
-            if not line.strip():
-                continue
-            parts = line.split(",")
-            if len(parts) < 2:
-                continue
-            player_rows.append({cols[i]: parts[i].strip() for i in range(min(len(cols), len(parts)))})
 
         # Filter to only selected players (if provided)
         if req and req.available_players:
-            available_lower = [p.lower() for p in req.available_players]
-            player_rows = [r for r in player_rows if r.get(name_col, "").lower() in available_lower]
+            available_lower = [p.strip().lower() for p in req.available_players]
+            player_rows = [r for r in all_rows if r.get(name_col, "").lower() in available_lower]
+        else:
+            player_rows = list(all_rows)
 
         if len(player_rows) < 2:
             raise HTTPException(status_code=400, detail="Not enough players selected.")
@@ -846,7 +844,7 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
                     continue
                 try:
                     total += float(v)
-                except ValueError:
+                except (ValueError, TypeError):
                     pass
             row["_total"] = total
 
@@ -858,45 +856,50 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
             common_player = weakest[name_col]
             pool = [r for r in pool if r[name_col] != common_player]
 
-        # Build the CSV to send to the LLM (only the even pool, exclude internal _total key)
-        pool_csv_lines = [header]
+        # Build a clean CSV to send to the LLM using the csv module (handles commas in fields)
+        display_cols = [c for c in cols if c != "_total"]
+        import io as _io
+        csv_buf = _io.StringIO()
+        writer = _csv.writer(csv_buf)
+        writer.writerow(display_cols)
         for row in pool:
-            # Quote fields that contain commas
-            def csv_field(v):
-                return f'"{v}"' if "," in str(v) else str(v)
-            pool_csv_lines.append(",".join(csv_field(row.get(c, "")) for c in cols))
-        pool_csv = "\n".join(pool_csv_lines)
+            writer.writerow([row.get(c, "") for c in display_cols])
+        pool_csv = csv_buf.getvalue().strip()
+
+        # Names the LLM must distribute
+        pool_player_names = [r[name_col] for r in pool]
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not read player-details.csv: {e}")
 
+    pool_names_str = ", ".join(pool_player_names)
+    pool_count = len(pool_player_names)
+    half = pool_count // 2
+
     prompt = (
-        "Here is a list of cricket players with their batting, bowling, fielding ratings, and remarks about each player.\n"
+        f"Here are {pool_count} cricket players with their batting, bowling, fielding ratings, and remarks.\n"
         f"```csv\n{pool_csv}\n```\n\n"
-        "Your task is to divide these players into exactly two balanced teams AND give each team a creative, sporty name.\n"
-        "STEP 1 - Balance the teams:\n"
-        "Carefully read each player's REMARKS alongside their numeric ratings. "
-        "The remarks contain crucial context such as:\n"
-        "- Whether a player is consistent or inconsistent\n"
-        "- Whether a player can field at the boundary or not\n"
-        "- Whether a player needs a runner (limited mobility)\n"
-        "- Whether a player is young/learning vs experienced/mature\n"
-        "Use both the numeric ratings AND the remarks to ensure each team is truly balanced "
-        "in terms of batting strength, bowling strength, fielding capability, consistency, and age/experience mix.\n"
-        "Every player must appear in exactly one team.\n"
-        "Make sure each team have atleast one player who can field at boundary.\n"
+        f"ALL {pool_count} players listed here must be assigned: {pool_names_str}\n\n"
+        "Your task: divide ALL of these players into exactly two balanced teams AND give each team a creative name.\n"
+        "CRITICAL RULES:\n"
+        f"1. team1 must have EXACTLY {half} players.\n"
+        f"2. team2 must have EXACTLY {half} players.\n"
+        "3. Every single player listed above must appear in exactly ONE team. No player may be omitted or duplicated.\n"
+        "4. Use each player's REMARKS alongside numeric ratings to balance the teams — pay attention to: "
+        "consistency, boundary fielding ability, mobility (needs a runner), age/experience mix. "
+        "Each team should have at least one reliable boundary fielder.\n"
         "STEP 2 - Name the teams:\n"
-        "Invent a fun, creative, sporty team name for each team. "
-        "Draw inspiration from animals, cities, natural phenomena, mythological figures, sports slang, or anything fierce and memorable. "
+        "Invent a fun, creative, sporty name for each team. "
+        "Draw inspiration from animals, cities, natural phenomena, mythological figures, or sports slang. "
         "Examples: 'Mumbai Mavericks', 'Thunder Cobras', 'Roaring Rhinos', 'Blazing Falcons'. "
-        "Make the names distinct and exciting — no generic 'Team A' or 'Team 1' style names.\n"
+        "No generic 'Team A' or 'Team 1' style names.\n"
         "Return ONLY a valid JSON object with exactly these keys:\n"
-        "  'team1': list of player name strings\n"
-        "  'team2': list of player name strings\n"
-        "  'team1_name': creative team name string for team 1\n"
-        "  'team2_name': creative team name string for team 2\n"
+        "  'team1': list of player name strings (EXACTLY {half} names from the list above)\n"
+        "  'team2': list of player name strings (EXACTLY {half} names from the list above)\n"
+        "  'team1_name': creative team name string\n"
+        "  'team2_name': creative team name string\n"
         "Do not include markdown, explanations, or any other text."
     )
 
@@ -933,6 +936,20 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
             team2 = teams["team2"]
             team1_name = teams.get("team1_name", "Team 1")
             team2_name = teams.get("team2_name", "Team 2")
+
+            # Validate: remove any hallucinated names not in the pool
+            valid_names = set(pool_player_names)
+            team1 = [p for p in team1 if p in valid_names]
+            team2 = [p for p in team2 if p in valid_names]
+
+            # Recover any players the LLM missed
+            assigned = set(team1) | set(team2)
+            missing = [n for n in pool_player_names if n not in assigned]
+            for p in missing:
+                if len(team1) <= len(team2):
+                    team1.append(p)
+                else:
+                    team2.append(p)
 
             # Append the common (weakest) player to both teams
             if common_player:
