@@ -861,18 +861,20 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
         if len(player_rows) < 2:
             raise HTTPException(status_code=400, detail="Not enough players selected.")
 
+        if len(player_rows) < 2:
+            raise HTTPException(status_code=400, detail="Not enough players selected.")
+
         # ── Step 1: Per-dimension adjusted scores from ratings + remarks ──
         def multi_score(row):
             r = row.get(remarks_col, "").lower()
-            def _f(key):
-                try: return float(row.get(key, 0) or 0)
+            def _f(k):
+                try: return float(row.get(k, 0) or 0)
                 except: return 0.0
-
             bat  = _f("batting")
             bowl = _f("bowling")
             fld  = _f("fielding")
 
-            # Batting: reward consistent players, penalise erratic hitters
+            # Batting: reward consistency, penalise erratic hitters
             if "most consistent" in r or "best, most consistent" in r:
                 bat += 1.5
             if "not consistent" in r or "hitter but not consistent" in r:
@@ -886,12 +888,12 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
             if "not able to field at boundary" in r or "cannot field at back" in r:
                 fld -= 2.5
 
-            # Mobility: needing a runner hurts batting and fielding
+            # Mobility: needing a runner hurts batting run-rate and fielding
             if "need a runner" in r or "needs a runner" in r:
                 bat -= 0.5
                 fld -= 2.5
 
-            # Maturity / experience (0–10 scale)
+            # Maturity / experience dimension
             mat = 5.0
             if "best, most consistent" in r or "most consistent" in r:
                 mat += 2.5
@@ -900,16 +902,16 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
             if "young kid at learning stage" in r:
                 mat -= 2.5
             if "old uncle" in r:
-                mat -= 0.5   # experienced but slowing down
+                mat -= 0.5
 
-            return {"batting": bat, "bowling": bowl, "fielding": fld, "maturity": mat}
+            return [bat, bowl, fld, mat]
 
         for row in player_rows:
             row["_ms"] = multi_score(row)
 
         def _overall(row):
             ms = row["_ms"]
-            return ms["batting"] + ms["bowling"] + ms["fielding"] + ms["maturity"] * 0.5
+            return ms[0] + ms[1] + ms[2] + ms[3] * 0.5
 
         # ── Step 2: Pick common player (weakest overall) if odd count ──
         common_player = None
@@ -919,78 +921,91 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
             common_player = weakest[name_col]
             pool = [r for r in pool if r[name_col] != common_player]
 
-        # ── Step 3: Multi-dimensional optimizer ──
-        DIMS    = ["batting", "bowling", "fielding", "maturity"]
-        WEIGHTS = {"batting": 1.0, "bowling": 1.0, "fielding": 1.0, "maturity": 0.7}
-
-        # Normalise by pool total per dimension so all dims are on equal footing
-        dim_total = {}
-        for d in DIMS:
-            s = sum(r["_ms"][d] for r in pool)
-            dim_total[d] = s if s != 0 else 1.0
-
-        def _has_fielder(rows):
-            return any(
-                ("good fielder at boundary" in r.get(remarks_col, "").lower()
-                 or "best fielder at boundary" in r.get(remarks_col, "").lower()
-                 or "able to field at boundary" in r.get(remarks_col, "").lower())
-                and "not able to field at boundary" not in r.get(remarks_col, "").lower()
-                for r in rows
-            )
-
-        def split_cost(t1_idx_set):
-            t1r = [pool[i] for i in t1_idx_set]
-            t2r = [pool[i] for i in set(range(len(pool))) - t1_idx_set]
-            cost = 0.0
-            for d in DIMS:
-                s1 = sum(r["_ms"][d] for r in t1r)
-                s2 = sum(r["_ms"][d] for r in t2r)
-                cost += WEIGHTS[d] * ((s1 - s2) / dim_total[d]) ** 2
-            # Large penalty if a team has no boundary fielder
-            if not _has_fielder(t1r) or not _has_fielder(t2r):
-                cost += 20.0
-            return cost
-
-        n    = len(pool)
-        half = n // 2
-
-        from itertools import combinations as _comb
+        # ── Step 3: Multi-dimensional Simulated Annealing optimizer ──
+        # Balances batting, bowling, fielding, maturity simultaneously
         import random as _rng, math as _math
 
-        best_cost   = float("inf")
-        best_t1_idx = set()
+        NDIMS   = 4
+        WEIGHTS = [1.0, 1.0, 1.0, 0.7]   # batting, bowling, fielding, maturity
 
-        if n <= 22:
-            # Exhaustive search — globally optimal (C(22,11)=705k, <1s in Python)
-            for combo in _comb(range(n), half):
-                cost = split_cost(set(combo))
-                if cost < best_cost:
-                    best_cost   = cost
-                    best_t1_idx = set(combo)
-        else:
-            # Simulated annealing for larger pools
-            order  = sorted(range(n), key=lambda i: _overall(pool[i]), reverse=True)
-            cur_t1 = set(order[i] for i in range(0, n, 2) if len([order[j] for j in range(0,n,2) if j//2 < half]) > 0)
-            # Simpler seed: first half of sorted order
-            cur_t1 = set(order[:half])
-            cur_cost = split_cost(cur_t1)
-            best_t1_idx, best_cost = set(cur_t1), cur_cost
-            all_idx = set(range(n))
-            temp = 1.0
-            for _ in range(10000):
-                temp = max(0.001, temp * 0.9995)
-                i1 = _rng.choice(list(cur_t1))
-                i2 = _rng.choice(list(all_idx - cur_t1))
-                new_t1 = (cur_t1 - {i1}) | {i2}
-                new_cost = split_cost(new_t1)
-                if new_cost < cur_cost or _rng.random() < _math.exp((cur_cost - new_cost) / temp):
-                    cur_t1, cur_cost = new_t1, new_cost
-                    if new_cost < best_cost:
-                        best_cost, best_t1_idx = new_cost, set(new_t1)
+        scores_arr = [row["_ms"] for row in pool]
+        n = len(pool)
+        half = n // 2
+        totals = [sum(scores_arr[i][d] for i in range(n)) or 1.0 for d in range(NDIMS)]
 
-        best_t2_idx  = set(range(n)) - best_t1_idx
-        team1_rows   = [pool[i] for i in sorted(best_t1_idx)]
-        team2_rows   = [pool[i] for i in sorted(best_t2_idx)]
+        def _is_fielder(row):
+            r = row.get(remarks_col, "").lower()
+            return (
+                ("good fielder at boundary" in r or "best fielder at boundary" in r
+                 or "able to field at boundary" in r)
+                and "not able to field at boundary" not in r
+            )
+
+        fielder_flags = [_is_fielder(row) for row in pool]
+        all_idx = set(range(n))
+
+        def _cost(t1_set, s1):
+            # Weighted sum of squared normalised differences across all dimensions
+            c = sum(WEIGHTS[d] * ((s1[d] * 2 - totals[d]) / totals[d]) ** 2
+                    for d in range(NDIMS))
+            # Penalty if a team has no boundary fielder
+            t1_has = any(fielder_flags[i] for i in t1_set)
+            t2_has = any(fielder_flags[i] for i in (all_idx - t1_set))
+            if not t1_has or not t2_has:
+                c += 20.0
+            return c
+
+        # Greedy seed: descending overall, assign to smaller-sum team each step
+        order = sorted(range(n), key=lambda i: _overall(pool[i]), reverse=True)
+        cur_t1 = set(); cur_s1 = [0.0] * NDIMS
+        t2_s   = [0.0] * NDIMS
+        for idx in order:
+            need1 = sum(WEIGHTS[d] * (cur_s1[d] / totals[d]) ** 2 for d in range(NDIMS))
+            need2 = sum(WEIGHTS[d] * (t2_s[d]   / totals[d]) ** 2 for d in range(NDIMS))
+            if len(cur_t1) < half and (len(all_idx - cur_t1) - (n - len(cur_t1)) >= 0
+                                       and need1 <= need2 or n - len(cur_t1) == half):
+                cur_t1.add(idx)
+                for d in range(NDIMS): cur_s1[d] += scores_arr[idx][d]
+            else:
+                for d in range(NDIMS): t2_s[d] += scores_arr[idx][d]
+
+        # Fix size if greedy over/underfilled
+        while len(cur_t1) < half:
+            cand = min(all_idx - cur_t1, key=lambda i: _overall(pool[i]))
+            cur_t1.add(cand)
+            for d in range(NDIMS): cur_s1[d] += scores_arr[cand][d]
+        while len(cur_t1) > half:
+            cand = min(cur_t1, key=lambda i: _overall(pool[i]))
+            cur_t1.discard(cand)
+            for d in range(NDIMS): cur_s1[d] -= scores_arr[cand][d]
+
+        cur_cost = _cost(cur_t1, cur_s1)
+        best_t1, best_cost = set(cur_t1), cur_cost
+
+        # Annealing: swap one player between teams each iteration
+        temp = 2.0
+        t1_list = list(cur_t1)
+        t2_list = list(all_idx - cur_t1)
+        for _ in range(20000):
+            temp = max(0.001, temp * 0.9997)
+            i1 = _rng.choice(t1_list)
+            i2 = _rng.choice(t2_list)
+            new_s1 = [cur_s1[d] - scores_arr[i1][d] + scores_arr[i2][d]
+                      for d in range(NDIMS)]
+            new_t1 = (cur_t1 - {i1}) | {i2}
+            new_cost = _cost(new_t1, new_s1)
+            delta = new_cost - cur_cost
+            if delta < 0 or _rng.random() < _math.exp(-delta / temp):
+                cur_t1, cur_s1, cur_cost = new_t1, new_s1, new_cost
+                t1_list = list(cur_t1)
+                t2_list = list(all_idx - cur_t1)
+                if new_cost < best_cost:
+                    best_cost = new_cost
+                    best_t1 = set(cur_t1)
+
+        best_t2 = all_idx - best_t1
+        team1_rows = [pool[i] for i in sorted(best_t1)]
+        team2_rows = [pool[i] for i in sorted(best_t2)]
 
         team1 = [r[name_col] for r in team1_rows]
         team2 = [r[name_col] for r in team2_rows]
