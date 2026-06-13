@@ -861,107 +861,140 @@ async def generate_teams(req: Optional[GenerateTeamsRequest] = None):
         if len(player_rows) < 2:
             raise HTTPException(status_code=400, detail="Not enough players selected.")
 
-        # ── Step 1: Compute base numeric rating (batting + bowling + fielding) ──
-        for row in player_rows:
-            base = 0
-            for k, v in row.items():
-                if k in (name_col, remarks_col):
-                    continue
-                try:
-                    base += float(v)
-                except (ValueError, TypeError):
-                    pass
-            row["_base"] = base
-
-        # ── Step 2: Derive effective score using remarks ──
-        def effective_score(row):
-            score = row["_base"]
+        # ── Step 1: Per-dimension adjusted scores from ratings + remarks ──
+        def multi_score(row):
             r = row.get(remarks_col, "").lower()
-            # Penalties for real-world limitations
-            if "not able to field at boundary" in r or "cannot field at back" in r:
-                score -= 1.5
-            if "need a runner" in r or "needs a runner" in r:
-                score -= 2.0
-            if "old uncle" in r:
-                score -= 1.0
+            def _f(key):
+                try: return float(row.get(key, 0) or 0)
+                except: return 0.0
+
+            bat  = _f("batting")
+            bowl = _f("bowling")
+            fld  = _f("fielding")
+
+            # Batting: reward consistent players, penalise erratic hitters
+            if "most consistent" in r or "best, most consistent" in r:
+                bat += 1.5
             if "not consistent" in r or "hitter but not consistent" in r:
-                score -= 1.5
-            if "young kid at learning stage" in r:
-                score -= 0.5
-            # Bonuses for strengths called out in remarks
-            if "best, most consistent" in r or "most consistent" in r:
-                score += 1.5
+                bat -= 1.5
+
+            # Fielding: reward boundary fielders, penalise those who can't
             if "best fielder at boundary" in r:
-                score += 1.0
-            if "good fielder at boundary" in r or "able to field at boundary" in r:
-                score += 0.5
+                fld += 2.0
+            elif "good fielder at boundary" in r or "able to field at boundary" in r:
+                fld += 1.0
+            if "not able to field at boundary" in r or "cannot field at back" in r:
+                fld -= 2.5
+
+            # Mobility: needing a runner hurts batting and fielding
+            if "need a runner" in r or "needs a runner" in r:
+                bat -= 0.5
+                fld -= 2.5
+
+            # Maturity / experience (0–10 scale)
+            mat = 5.0
+            if "best, most consistent" in r or "most consistent" in r:
+                mat += 2.5
             if "mature player" in r or "stable mindset" in r:
-                score += 0.5
-            return score
+                mat += 1.5
+            if "young kid at learning stage" in r:
+                mat -= 2.5
+            if "old uncle" in r:
+                mat -= 0.5   # experienced but slowing down
+
+            return {"batting": bat, "bowling": bowl, "fielding": fld, "maturity": mat}
 
         for row in player_rows:
-            row["_eff"] = effective_score(row)
+            row["_ms"] = multi_score(row)
 
-        # Helper: does remarks indicate can field at boundary?
-        def can_field_boundary(row):
-            r = row.get(remarks_col, "").lower()
-            return (
-                "good fielder at boundary" in r
-                or "best fielder at boundary" in r
-                or "able to field at boundary" in r
-            ) and "not able to field at boundary" not in r
+        def _overall(row):
+            ms = row["_ms"]
+            return ms["batting"] + ms["bowling"] + ms["fielding"] + ms["maturity"] * 0.5
 
-        # ── Step 3: Pick common player (weakest effective score) if odd count ──
+        # ── Step 2: Pick common player (weakest overall) if odd count ──
         common_player = None
         pool = list(player_rows)
         if len(pool) % 2 == 1:
-            weakest = min(pool, key=lambda r: r["_eff"])
+            weakest = min(pool, key=_overall)
             common_player = weakest[name_col]
             pool = [r for r in pool if r[name_col] != common_player]
 
-        # ── Step 4: Greedy number-partition — optimal for balancing two teams ──
-        # Sort by effective score descending so biggest players assigned first
-        pool_sorted = sorted(pool, key=lambda r: r["_eff"], reverse=True)
-        team1_rows, team2_rows = [], []
-        t1_total, t2_total = 0.0, 0.0
-        for row in pool_sorted:
-            if t1_total <= t2_total:
-                team1_rows.append(row)
-                t1_total += row["_eff"]
-            else:
-                team2_rows.append(row)
-                t2_total += row["_eff"]
+        # ── Step 3: Multi-dimensional optimizer ──
+        DIMS    = ["batting", "bowling", "fielding", "maturity"]
+        WEIGHTS = {"batting": 1.0, "bowling": 1.0, "fielding": 1.0, "maturity": 0.7}
 
-        # ── Step 5: Ensure each team has ≥1 boundary fielder ──
-        t1_has_fielder = any(can_field_boundary(r) for r in team1_rows)
-        t2_has_fielder = any(can_field_boundary(r) for r in team2_rows)
+        # Normalise by pool total per dimension so all dims are on equal footing
+        dim_total = {}
+        for d in DIMS:
+            s = sum(r["_ms"][d] for r in pool)
+            dim_total[d] = s if s != 0 else 1.0
 
-        if t1_has_fielder and not t2_has_fielder:
-            # Move least-costly boundary fielder from t1 → t2 and swap out a non-fielder
-            t1_fielders = [r for r in team1_rows if can_field_boundary(r)]
-            swap_out = min(t1_fielders, key=lambda r: r["_eff"])
-            t2_non = [r for r in team2_rows if not can_field_boundary(r)]
-            if t2_non:
-                swap_in = min(t2_non, key=lambda r: r["_eff"])
-                team1_rows.remove(swap_out)
-                team2_rows.remove(swap_in)
-                team1_rows.append(swap_in)
-                team2_rows.append(swap_out)
+        def _has_fielder(rows):
+            return any(
+                ("good fielder at boundary" in r.get(remarks_col, "").lower()
+                 or "best fielder at boundary" in r.get(remarks_col, "").lower()
+                 or "able to field at boundary" in r.get(remarks_col, "").lower())
+                and "not able to field at boundary" not in r.get(remarks_col, "").lower()
+                for r in rows
+            )
 
-        elif t2_has_fielder and not t1_has_fielder:
-            t2_fielders = [r for r in team2_rows if can_field_boundary(r)]
-            swap_out = min(t2_fielders, key=lambda r: r["_eff"])
-            t1_non = [r for r in team1_rows if not can_field_boundary(r)]
-            if t1_non:
-                swap_in = min(t1_non, key=lambda r: r["_eff"])
-                team2_rows.remove(swap_out)
-                team1_rows.remove(swap_in)
-                team2_rows.append(swap_in)
-                team1_rows.append(swap_out)
+        def split_cost(t1_idx_set):
+            t1r = [pool[i] for i in t1_idx_set]
+            t2r = [pool[i] for i in set(range(len(pool))) - t1_idx_set]
+            cost = 0.0
+            for d in DIMS:
+                s1 = sum(r["_ms"][d] for r in t1r)
+                s2 = sum(r["_ms"][d] for r in t2r)
+                cost += WEIGHTS[d] * ((s1 - s2) / dim_total[d]) ** 2
+            # Large penalty if a team has no boundary fielder
+            if not _has_fielder(t1r) or not _has_fielder(t2r):
+                cost += 20.0
+            return cost
+
+        n    = len(pool)
+        half = n // 2
+
+        from itertools import combinations as _comb
+        import random as _rng, math as _math
+
+        best_cost   = float("inf")
+        best_t1_idx = set()
+
+        if n <= 22:
+            # Exhaustive search — globally optimal (C(22,11)=705k, <1s in Python)
+            for combo in _comb(range(n), half):
+                cost = split_cost(set(combo))
+                if cost < best_cost:
+                    best_cost   = cost
+                    best_t1_idx = set(combo)
+        else:
+            # Simulated annealing for larger pools
+            order  = sorted(range(n), key=lambda i: _overall(pool[i]), reverse=True)
+            cur_t1 = set(order[i] for i in range(0, n, 2) if len([order[j] for j in range(0,n,2) if j//2 < half]) > 0)
+            # Simpler seed: first half of sorted order
+            cur_t1 = set(order[:half])
+            cur_cost = split_cost(cur_t1)
+            best_t1_idx, best_cost = set(cur_t1), cur_cost
+            all_idx = set(range(n))
+            temp = 1.0
+            for _ in range(10000):
+                temp = max(0.001, temp * 0.9995)
+                i1 = _rng.choice(list(cur_t1))
+                i2 = _rng.choice(list(all_idx - cur_t1))
+                new_t1 = (cur_t1 - {i1}) | {i2}
+                new_cost = split_cost(new_t1)
+                if new_cost < cur_cost or _rng.random() < _math.exp((cur_cost - new_cost) / temp):
+                    cur_t1, cur_cost = new_t1, new_cost
+                    if new_cost < best_cost:
+                        best_cost, best_t1_idx = new_cost, set(new_t1)
+
+        best_t2_idx  = set(range(n)) - best_t1_idx
+        team1_rows   = [pool[i] for i in sorted(best_t1_idx)]
+        team2_rows   = [pool[i] for i in sorted(best_t2_idx)]
 
         team1 = [r[name_col] for r in team1_rows]
         team2 = [r[name_col] for r in team2_rows]
-        pool_player_names = team1 + team2  # for validation reference
+        pool_player_names = team1 + team2
 
     except HTTPException:
         raise
